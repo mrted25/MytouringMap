@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1040431925286",
+    "project_id": "touring-map-app-f31f8",
+    "storage_bucket": "touring-map-app-f31f8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1040431925286:android:2d843e9c7b9bbc6b64bee7",
+        "android_client_info": {
+          "package_name": "com.tedapp.touringmap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6AbXjzpOJZnG61cYmSpGDSiBssgE4_uA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
