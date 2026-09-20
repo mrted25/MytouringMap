@@ -44,4 +44,4 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
 
       - name: Run tests
-        run: dart test
+        run: flutter test
