@@ -1124,7 +1124,7 @@ class _MapScreenState extends State<MapScreen> {
                     _tileProviders[
                         _selectedTile]!,
                 userAgentPackageName:
-                    'com.example.touring_map_app',
+                    'com.tedapp.touringmap',
               ),
 
               // GARIS RUTE
