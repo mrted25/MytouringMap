@@ -1,4 +1,4 @@
-package com.example.touring_map_app
+package com.tedapp.touringmap
 
 import io.flutter.embedding.android.FlutterActivity
 
