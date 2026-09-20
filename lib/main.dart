@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 
 const String agoraAppId = "398d30b96cae43aeac064c7a0fa9add8";
 const String channelName = "touring_room_1";
@@ -103,6 +105,18 @@ class _MapScreenState extends State<MapScreen> {
   String _gpsStatus = 'Mencari GPS...';
 
   bool _locationReady = false;
+  
+  // ==========================================================
+// ROUTING
+// ==========================================================
+
+List<LatLng> _routePoints = [];
+
+double _routeDistanceKm = 0.0;
+
+int _routeDurationMinutes = 0;
+
+bool _isLoadingRoute = false;
 
   // ==========================================================
   // TOURING
@@ -390,12 +404,157 @@ class _MapScreenState extends State<MapScreen> {
 
         _calculateDistanceAndEta();
       });
+      
+      // ==========================================================
+// AMBIL RUTE DARI OSRM
+// ==========================================================
+
+Future<void> _getRoadRoute() async {
+  if (_currentPosition == null) {
+    return;
+  }
+
+  if (!mounted) return;
+
+  setState(() {
+    _isLoadingRoute = true;
+  });
+
+  try {
+    final start = _currentPosition!;
+    final end = _destinasi;
+
+    final url = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${start.longitude},${start.latitude};'
+      '${end.longitude},${end.latitude}'
+      '?overview=full&geometries=geojson',
+    );
+
+    debugPrint(
+      'Meminta rute OSRM...',
+    );
+
+    final response = await http
+        .get(url)
+        .timeout(
+          const Duration(
+            seconds: 15,
+          ),
+        );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'HTTP ${response.statusCode}',
+      );
+    }
+
+    final data =
+        jsonDecode(response.body);
+
+    if (data['code'] != 'Ok') {
+      throw Exception(
+        'OSRM: ${data['code']}',
+      );
+    }
+
+    final route =
+        data['routes'][0];
+
+    final geometry =
+        route['geometry'];
+
+    final coordinates =
+        geometry['coordinates'];
+
+    final List<LatLng> newRoute =
+        coordinates.map<LatLng>(
+      (coordinate) {
+        return LatLng(
+          (coordinate[1] as num)
+              .toDouble(),
+          (coordinate[0] as num)
+              .toDouble(),
+        );
+      },
+    ).toList();
+
+    final double distanceMeters =
+        (route['distance'] as num)
+            .toDouble();
+
+    final double durationSeconds =
+        (route['duration'] as num)
+            .toDouble();
+
+    if (!mounted) return;
+
+    setState(() {
+      _routePoints =
+          newRoute;
+
+      _routeDistanceKm =
+          distanceMeters / 1000;
+
+      _routeDurationMinutes =
+          (durationSeconds / 60)
+              .round();
+
+      _isLoadingRoute = false;
+
+      // Pakai hasil routing untuk
+      // tampilan jarak dan ETA.
+      _distanceInKm =
+          _routeDistanceKm;
+
+      _estimatedMinutes =
+          _routeDurationMinutes;
+    });
+
+    debugPrint(
+      'RUTE BERHASIL',
+    );
+
+    debugPrint(
+      'Jarak jalan: '
+      '${_routeDistanceKm.toStringAsFixed(2)} km',
+    );
+
+    debugPrint(
+      'Durasi: '
+      '$_routeDurationMinutes menit',
+    );
+
+    debugPrint(
+      'Jumlah titik rute: '
+      '${_routePoints.length}',
+    );
+  } catch (e) {
+    debugPrint(
+      'ERROR ROUTING: $e',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingRoute = false;
+      _routePoints = [];
+    });
+
+    _showMessage(
+      'Gagal mendapatkan rute jalan',
+    );
+  }
+}
 
       // Pindahkan peta ke posisi HP
       _mapController.move(
         _currentPosition!,
         15.0,
       );
+      
+      await _getRoadRoute();
+      
     } catch (e) {
       debugPrint(
         'ERROR GET CURRENT LOCATION: $e',
@@ -470,6 +629,15 @@ class _MapScreenState extends State<MapScreen> {
             newPosition,
             16.0,
           );
+        if (_isTouring) {
+  _mapController.move(
+    newPosition,
+    16.0,
+  );
+
+  // Update rute berdasarkan posisi terbaru.
+  _getRoadRoute();
+}
         }
       },
       onError: (error) {
@@ -676,6 +844,8 @@ class _MapScreenState extends State<MapScreen> {
         point,
         14.0,
       );
+
+      _getRoadRoute();
 
       _showMessage(
         'Destinasi berhasil dipilih',
@@ -1450,23 +1620,17 @@ class _MapScreenState extends State<MapScreen> {
               // =================================================
 
               PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: [
-                      _currentPosition ??
-                          _titikKumpul,
-                      _destinasi,
-                    ],
-                    strokeWidth:
-                        4.0,
-                    color:
-                        _isMotorMode
-                            ? Colors.blueAccent
-                            : Colors.orangeAccent,
-                  ),
-                ],
-              ),
-
+  polylines: [
+    if (_routePoints.isNotEmpty)
+      Polyline(
+        points: _routePoints,
+        strokeWidth: 5.0,
+        color: _isMotorMode
+            ? Colors.blueAccent
+            : Colors.orangeAccent,
+      ),
+  ],
+),
               // =================================================
               // MARKER
               // =================================================
