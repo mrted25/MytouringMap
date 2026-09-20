@@ -86,9 +86,6 @@ class _MapScreenState extends State<MapScreen> {
   // MODE PILIH TITIK DI PETA
   // ==========================================================
 
-  // null       = mode normal
-  // 'kumpul'   = sedang memilih titik kumpul
-  // 'destinasi'= sedang memilih destinasi
   String? _mapPickingMode;
 
   // ==========================================================
@@ -96,13 +93,17 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   LatLng? _currentPosition;
+
   StreamSubscription<Position>? _positionStream;
 
   double _distanceInKm = 0.0;
+
   int _estimatedMinutes = 0;
 
+  String _gpsStatus = 'Mencari GPS...';
+
   // ==========================================================
-  // MODE KENDARAAN SAYA
+  // MODE KENDARAAN
   // ==========================================================
 
   bool _isMotorMode = true;
@@ -132,7 +133,10 @@ class _MapScreenState extends State<MapScreen> {
     Member(
       id: '1',
       name: 'Budi (Road Captain)',
-      location: const LatLng(-6.195000, 106.832000),
+      location: const LatLng(
+        -6.195000,
+        106.832000,
+      ),
       status: 'Riding',
       color: Colors.orange,
       vehicleType: 'Motor',
@@ -146,6 +150,7 @@ class _MapScreenState extends State<MapScreen> {
   RtcEngine? _engine;
 
   bool _isEngineReady = false;
+
   bool _isTalking = false;
 
   String _pttStatusText =
@@ -159,8 +164,10 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
 
+    // GPS
     _checkLocationPermission();
 
+    // Agora
     if (!kIsWeb) {
       _initAgoraPTT();
     } else {
@@ -191,8 +198,11 @@ class _MapScreenState extends State<MapScreen> {
         RtcEngineEventHandler(
           onJoinChannelSuccess:
               (RtcConnection connection, int elapsed) {
+            if (!mounted) return;
+
             setState(() {
               _isEngineReady = true;
+
               _pttStatusText =
                   'Tekan & Tahan untuk Bicara';
             });
@@ -211,6 +221,8 @@ class _MapScreenState extends State<MapScreen> {
         options: const ChannelMediaOptions(),
       );
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _pttStatusText =
             'Tekan & Tahan untuk Bicara';
@@ -223,8 +235,11 @@ class _MapScreenState extends State<MapScreen> {
       await _engine!.muteLocalAudioStream(false);
     }
 
+    if (!mounted) return;
+
     setState(() {
       _isTalking = true;
+
       _pttStatusText =
           'Transmisi Suara Aktif...';
     });
@@ -235,8 +250,11 @@ class _MapScreenState extends State<MapScreen> {
       await _engine!.muteLocalAudioStream(true);
     }
 
+    if (!mounted) return;
+
     setState(() {
       _isTalking = false;
+
       _pttStatusText =
           'Tekan & Tahan untuk Bicara';
     });
@@ -247,11 +265,22 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   Future<void> _checkLocationPermission() async {
+    debugPrint('================================');
+    debugPrint('MEMERIKSA GPS');
+    debugPrint('================================');
+
     bool serviceEnabled =
         await Geolocator.isLocationServiceEnabled();
 
     if (!serviceEnabled) {
       debugPrint('GPS SERVICE MATI');
+
+      if (mounted) {
+        setState(() {
+          _gpsStatus = 'GPS Tidak Aktif';
+        });
+      }
+
       return;
     }
 
@@ -262,30 +291,77 @@ class _MapScreenState extends State<MapScreen> {
       'Location permission: $permission',
     );
 
+    // ========================================================
+    // REQUEST IZIN GPS
+    // ========================================================
+
     if (permission ==
         LocationPermission.denied) {
+      debugPrint(
+        'Meminta izin lokasi...',
+      );
+
       permission =
           await Geolocator.requestPermission();
 
       debugPrint(
         'Permission setelah request: $permission',
       );
-
-      if (permission ==
-          LocationPermission.denied) {
-        debugPrint(
-          'LOCATION PERMISSION DENIED',
-        );
-        return;
-      }
     }
+
+    // ========================================================
+    // DITOLAK
+    // ========================================================
+
+    if (permission ==
+        LocationPermission.denied) {
+      debugPrint(
+        'LOCATION PERMISSION DENIED',
+      );
+
+      if (mounted) {
+        setState(() {
+          _gpsStatus =
+              'Izin GPS Ditolak';
+        });
+      }
+
+      return;
+    }
+
+    // ========================================================
+    // DIBLOKIR PERMANEN
+    // ========================================================
 
     if (permission ==
         LocationPermission.deniedForever) {
       debugPrint(
         'LOCATION PERMISSION DENIED FOREVER',
       );
+
+      if (mounted) {
+        setState(() {
+          _gpsStatus =
+              'Izin GPS Diblokir';
+        });
+      }
+
       return;
+    }
+
+    // ========================================================
+    // IZIN SUDAH ADA
+    // ========================================================
+
+    debugPrint(
+      'IZIN GPS OK',
+    );
+
+    if (mounted) {
+      setState(() {
+        _gpsStatus =
+            'Mendapatkan posisi...';
+      });
     }
 
     await _getCurrentLocation();
@@ -293,9 +369,15 @@ class _MapScreenState extends State<MapScreen> {
     _startLocationUpdates();
   }
 
+  // ==========================================================
+  // AMBIL POSISI GPS
+  // ==========================================================
+
   Future<void> _getCurrentLocation() async {
     try {
-      debugPrint('Mencari posisi GPS...');
+      debugPrint(
+        'Mencari posisi GPS...',
+      );
 
       Position position =
           await Geolocator.getCurrentPosition(
@@ -304,30 +386,70 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       debugPrint(
-        'GPS berhasil: ${position.latitude}, ${position.longitude}',
+        '================================',
       );
 
-      if (mounted) {
-        setState(() {
-          _currentPosition = LatLng(
-            position.latitude,
-            position.longitude,
-          );
+      debugPrint(
+        'GPS BERHASIL',
+      );
 
-          _calculateDistanceAndEta();
-        });
+      debugPrint(
+        'Latitude : ${position.latitude}',
+      );
 
-        _mapController.move(
-          _currentPosition!,
-          15.0,
+      debugPrint(
+        'Longitude: ${position.longitude}',
+      );
+
+      debugPrint(
+        'Accuracy : ${position.accuracy}',
+      );
+
+      debugPrint(
+        '================================',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _currentPosition = LatLng(
+          position.latitude,
+          position.longitude,
         );
-      }
+
+        _gpsStatus =
+            'GPS Aktif';
+
+        _calculateDistanceAndEta();
+      });
+
+      // Pindahkan peta ke posisi HP
+      _mapController.move(
+        _currentPosition!,
+        15.0,
+      );
     } catch (e) {
-      debugPrint('ERROR GPS: $e');
+      debugPrint(
+        'ERROR GPS: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _gpsStatus =
+            'Gagal mendapatkan GPS';
+      });
     }
   }
 
+  // ==========================================================
+  // UPDATE GPS REALTIME
+  // ==========================================================
+
   void _startLocationUpdates() {
+    // Hentikan stream lama jika ada
+    _positionStream?.cancel();
+
     const LocationSettings locationSettings =
         LocationSettings(
       accuracy: LocationAccuracy.high,
@@ -336,9 +458,18 @@ class _MapScreenState extends State<MapScreen> {
 
     _positionStream =
         Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((Position position) {
-      if (mounted) {
+      locationSettings:
+          locationSettings,
+    ).listen(
+      (Position position) {
+        debugPrint(
+          'GPS UPDATE: '
+          '${position.latitude}, '
+          '${position.longitude}',
+        );
+
+        if (!mounted) return;
+
         setState(() {
           _currentPosition =
               LatLng(
@@ -346,10 +477,25 @@ class _MapScreenState extends State<MapScreen> {
             position.longitude,
           );
 
+          _gpsStatus =
+              'GPS Aktif';
+
           _calculateDistanceAndEta();
         });
-      }
-    });
+      },
+      onError: (error) {
+        debugPrint(
+          'GPS STREAM ERROR: $error',
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _gpsStatus =
+              'GPS Error';
+        });
+      },
+    );
   }
 
   // ==========================================================
@@ -373,10 +519,14 @@ class _MapScreenState extends State<MapScreen> {
         distanceInMeters / 1000;
 
     double speedKmPerHour =
-        _isMotorMode ? 45.0 : 35.0;
+        _isMotorMode
+            ? 45.0
+            : 35.0;
 
     _estimatedMinutes =
-        ((_distanceInKm / speedKmPerHour) * 60)
+        ((_distanceInKm /
+                    speedKmPerHour) *
+                60)
             .round();
   }
 
@@ -389,6 +539,10 @@ class _MapScreenState extends State<MapScreen> {
       _mapController.move(
         _currentPosition!,
         15.0,
+      );
+    } else {
+      _showMessage(
+        'Posisi GPS belum tersedia',
       );
     }
   }
@@ -431,10 +585,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // PILIH TITIK KUMPUL / DESTINASI
+  // PILIH TITIK
   // ==========================================================
 
-  void _startPickLocation(String mode) {
+  void _startPickLocation(
+    String mode,
+  ) {
     Navigator.pop(context);
 
     setState(() {
@@ -450,13 +606,18 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    if (_mapPickingMode == 'kumpul') {
+    if (_mapPickingMode ==
+        'kumpul') {
       setState(() {
         _titikKumpul = point;
+
         _mapPickingMode = null;
       });
 
-      _mapController.move(point, 14.0);
+      _mapController.move(
+        point,
+        14.0,
+      );
 
       _showMessage(
         'Titik kumpul berhasil dipilih',
@@ -465,12 +626,16 @@ class _MapScreenState extends State<MapScreen> {
         'destinasi') {
       setState(() {
         _destinasi = point;
+
         _mapPickingMode = null;
 
         _calculateDistanceAndEta();
       });
 
-      _mapController.move(point, 14.0);
+      _mapController.move(
+        point,
+        14.0,
+      );
 
       _showMessage(
         'Destinasi berhasil dipilih',
@@ -478,13 +643,22 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _showMessage(String message) {
+  // ==========================================================
+  // MESSAGE
+  // ==========================================================
+
+  void _showMessage(
+    String message,
+  ) {
     ScaffoldMessenger.of(context)
         .showSnackBar(
       SnackBar(
-        content: Text(message),
+        content:
+            Text(message),
         duration:
-            const Duration(seconds: 2),
+            const Duration(
+          seconds: 2,
+        ),
       ),
     );
   }
@@ -502,27 +676,33 @@ class _MapScreenState extends State<MapScreen> {
             'Atur Rute Touring',
           ),
           content: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
             children: [
-              // TITIK KUMPUL
               Card(
                 child: ListTile(
-                  leading: const Icon(
+                  leading:
+                      const Icon(
                     Icons.location_on,
-                    color: Colors.red,
+                    color:
+                        Colors.red,
                   ),
-                  title: const Text(
+                  title:
+                      const Text(
                     'Titik Kumpul',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontWeight:
                           FontWeight.bold,
                     ),
                   ),
-                  subtitle: Text(
+                  subtitle:
+                      Text(
                     '${_titikKumpul.latitude.toStringAsFixed(5)}, '
                     '${_titikKumpul.longitude.toStringAsFixed(5)}',
                   ),
-                  trailing: const Icon(
+                  trailing:
+                      const Icon(
                     Icons.map,
                   ),
                   onTap: () {
@@ -533,27 +713,34 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
-              // DESTINASI
               Card(
                 child: ListTile(
-                  leading: const Icon(
+                  leading:
+                      const Icon(
                     Icons.flag,
-                    color: Colors.green,
+                    color:
+                        Colors.green,
                   ),
-                  title: const Text(
+                  title:
+                      const Text(
                     'Destinasi',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontWeight:
                           FontWeight.bold,
                     ),
                   ),
-                  subtitle: Text(
+                  subtitle:
+                      Text(
                     '${_destinasi.latitude.toStringAsFixed(5)}, '
                     '${_destinasi.longitude.toStringAsFixed(5)}',
                   ),
-                  trailing: const Icon(
+                  trailing:
+                      const Icon(
                     Icons.map,
                   ),
                   onTap: () {
@@ -568,8 +755,13 @@ class _MapScreenState extends State<MapScreen> {
           actions: [
             TextButton(
               onPressed: () =>
-                  Navigator.pop(context),
-              child: const Text('Tutup'),
+                  Navigator.pop(
+                context,
+              ),
+              child:
+                  const Text(
+                'Tutup',
+              ),
             ),
           ],
         );
@@ -596,12 +788,14 @@ class _MapScreenState extends State<MapScreen> {
           builder:
               (context, setDialogState) {
             return AlertDialog(
-              title: const Text(
+              title:
+                  const Text(
                 'Tambah Anggota Rombongan',
               ),
               content:
                   SingleChildScrollView(
-                child: Column(
+                child:
+                    Column(
                   mainAxisSize:
                       MainAxisSize.min,
                   children: [
@@ -615,7 +809,9 @@ class _MapScreenState extends State<MapScreen> {
                         hintText:
                             'Contoh: Andi (Sweeper)',
                         prefixIcon:
-                            Icon(Icons.person),
+                            Icon(
+                          Icons.person,
+                        ),
                       ),
                     ),
 
@@ -625,7 +821,7 @@ class _MapScreenState extends State<MapScreen> {
 
                     DropdownButtonFormField<
                         String>(
-                      initialValue:
+                      value:
                           selectedVehicle,
                       decoration:
                           const InputDecoration(
@@ -640,8 +836,10 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                       items: const [
                         DropdownMenuItem(
-                          value: 'Motor',
-                          child: Row(
+                          value:
+                              'Motor',
+                          child:
+                              Row(
                             children: [
                               Icon(
                                 Icons.two_wheeler,
@@ -649,43 +847,53 @@ class _MapScreenState extends State<MapScreen> {
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Motor'),
+                              Text(
+                                'Motor',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'Scooter',
-                          child: Row(
+                          value:
+                              'Scooter',
+                          child:
+                              Row(
                             children: [
                               Icon(
-                                Icons
-                                    .electric_scooter,
+                                Icons.electric_scooter,
                               ),
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Scooter'),
+                              Text(
+                                'Scooter',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'Mobil',
-                          child: Row(
+                          value:
+                              'Mobil',
+                          child:
+                              Row(
                             children: [
                               Icon(
-                                Icons
-                                    .directions_car,
+                                Icons.directions_car,
                               ),
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Mobil'),
+                              Text(
+                                'Mobil',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'SUV',
-                          child: Row(
+                          value:
+                              'SUV',
+                          child:
+                              Row(
                             children: [
                               Icon(
                                 Icons
@@ -694,13 +902,17 @@ class _MapScreenState extends State<MapScreen> {
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('SUV'),
+                              Text(
+                                'SUV',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'Truck',
-                          child: Row(
+                          value:
+                              'Truck',
+                          child:
+                              Row(
                             children: [
                               Icon(
                                 Icons
@@ -709,13 +921,17 @@ class _MapScreenState extends State<MapScreen> {
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Truck'),
+                              Text(
+                                'Truck',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'Van',
-                          child: Row(
+                          value:
+                              'Van',
+                          child:
+                              Row(
                             children: [
                               Icon(
                                 Icons
@@ -724,13 +940,17 @@ class _MapScreenState extends State<MapScreen> {
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Van'),
+                              Text(
+                                'Van',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'Taxi',
-                          child: Row(
+                          value:
+                              'Taxi',
+                          child:
+                              Row(
                             children: [
                               Icon(
                                 Icons.local_taxi,
@@ -738,13 +958,17 @@ class _MapScreenState extends State<MapScreen> {
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Taxi'),
+                              Text(
+                                'Taxi',
+                              ),
                             ],
                           ),
                         ),
                         DropdownMenuItem(
-                          value: 'Sepeda',
-                          child: Row(
+                          value:
+                              'Sepeda',
+                          child:
+                              Row(
                             children: [
                               Icon(
                                 Icons.pedal_bike,
@@ -752,13 +976,17 @@ class _MapScreenState extends State<MapScreen> {
                               SizedBox(
                                 width: 10,
                               ),
-                              Text('Sepeda'),
+                              Text(
+                                'Sepeda',
+                              ),
                             ],
                           ),
                         ),
                       ],
-                      onChanged: (value) {
-                        if (value != null) {
+                      onChanged:
+                          (value) {
+                        if (value !=
+                            null) {
                           setDialogState(() {
                             selectedVehicle =
                                 value;
@@ -772,25 +1000,34 @@ class _MapScreenState extends State<MapScreen> {
               actions: [
                 TextButton(
                   onPressed: () =>
-                      Navigator.pop(context),
+                      Navigator.pop(
+                    context,
+                  ),
                   child:
-                      const Text('Batal'),
+                      const Text(
+                    'Batal',
+                  ),
                 ),
                 ElevatedButton.icon(
-                  icon: const Icon(
+                  icon:
+                      const Icon(
                     Icons.person_add,
                   ),
                   label:
-                      const Text('Simpan'),
+                      const Text(
+                    'Simpan',
+                  ),
                   onPressed: () {
                     if (nameController
                         .text
                         .trim()
                         .isNotEmpty) {
                       setState(() {
-                        _groupMembers.add(
+                        _groupMembers
+                            .add(
                           Member(
-                            id: DateTime.now()
+                            id: DateTime
+                                .now()
                                 .millisecondsSinceEpoch
                                 .toString(),
                             name:
@@ -808,7 +1045,8 @@ class _MapScreenState extends State<MapScreen> {
                                       106.827153) +
                                   0.002,
                             ),
-                            status: 'Riding',
+                            status:
+                                'Riding',
                             color:
                                 Colors.green,
                             vehicleType:
@@ -818,7 +1056,8 @@ class _MapScreenState extends State<MapScreen> {
                       });
 
                       Navigator.pop(
-                          context);
+                        context,
+                      );
                     }
                   },
                 ),
@@ -841,18 +1080,24 @@ class _MapScreenState extends State<MapScreen> {
           const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(
-          top: Radius.circular(20),
+          top:
+              Radius.circular(20),
         ),
       ),
-      builder: (context) {
+      builder:
+          (context) {
         return Padding(
           padding:
-              const EdgeInsets.all(16.0),
-          child: Column(
+              const EdgeInsets.all(
+            16.0,
+          ),
+          child:
+              Column(
             mainAxisSize:
                 MainAxisSize.min,
             crossAxisAlignment:
-                CrossAxisAlignment.start,
+                CrossAxisAlignment
+                    .start,
             children: [
               Row(
                 mainAxisAlignment:
@@ -872,12 +1117,15 @@ class _MapScreenState extends State<MapScreen> {
                     icon:
                         const Icon(
                       Icons.person_add,
-                      color:
-                          Colors.blueAccent,
+                      color: Colors
+                          .blueAccent,
                     ),
-                    onPressed: () {
+                    onPressed:
+                        () {
                       Navigator.pop(
-                          context);
+                        context,
+                      );
+
                       _showAddMemberDialog();
                     },
                   ),
@@ -892,10 +1140,12 @@ class _MapScreenState extends State<MapScreen> {
                     CircleAvatar(
                   backgroundColor:
                       Colors.blueAccent,
-                  child: Icon(
+                  child:
+                      Icon(
                     _isMotorMode
                         ? Icons.two_wheeler
-                        : Icons.directions_car,
+                        : Icons
+                            .directions_car,
                     color:
                         Colors.white,
                   ),
@@ -904,7 +1154,8 @@ class _MapScreenState extends State<MapScreen> {
                     const Text(
                   'Saya (Pengemudi)',
                 ),
-                subtitle: Text(
+                subtitle:
+                    Text(
                   _isMotorMode
                       ? 'Motor'
                       : 'Mobil',
@@ -925,7 +1176,8 @@ class _MapScreenState extends State<MapScreen> {
                         CircleAvatar(
                       backgroundColor:
                           member.color,
-                      child: Icon(
+                      child:
+                          Icon(
                         _getVehicleIcon(
                           member.vehicleType,
                         ),
@@ -934,8 +1186,11 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                     title:
-                        Text(member.name),
-                    subtitle: Text(
+                        Text(
+                      member.name,
+                    ),
+                    subtitle:
+                        Text(
                       '${member.vehicleType} • ${member.status}',
                     ),
                     trailing:
@@ -964,6 +1219,7 @@ class _MapScreenState extends State<MapScreen> {
     _positionStream?.cancel();
 
     _engine?.leaveChannel();
+
     _engine?.release();
 
     super.dispose();
@@ -974,20 +1230,26 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      appBar: AppBar(
+      appBar:
+          AppBar(
         title:
-            const Text('Touring Map'),
+            const Text(
+          'Touring Map',
+        ),
         backgroundColor:
             Colors.blueAccent,
         foregroundColor:
             Colors.white,
-
         actions: [
+
           // ATUR RUTE
           IconButton(
-            icon: const Icon(
+            icon:
+                const Icon(
               Icons.add_location_alt,
             ),
             tooltip:
@@ -998,7 +1260,8 @@ class _MapScreenState extends State<MapScreen> {
 
           // TAMBAH ANGGOTA
           IconButton(
-            icon: const Icon(
+            icon:
+                const Icon(
               Icons.person_add,
             ),
             tooltip:
@@ -1009,11 +1272,14 @@ class _MapScreenState extends State<MapScreen> {
 
           // DAFTAR ANGGOTA
           IconButton(
-            icon: Badge(
-              label: Text(
+            icon:
+                Badge(
+              label:
+                  Text(
                 '${_groupMembers.length + 1}',
               ),
-              child: const Icon(
+              child:
+                  const Icon(
                 Icons.group,
               ),
             ),
@@ -1025,7 +1291,8 @@ class _MapScreenState extends State<MapScreen> {
 
           // MODE MOTOR / MOBIL
           IconButton(
-            icon: Icon(
+            icon:
+                Icon(
               _isMotorMode
                   ? Icons.two_wheeler
                   : Icons.directions_car,
@@ -1034,7 +1301,8 @@ class _MapScreenState extends State<MapScreen> {
                 _isMotorMode
                     ? 'Mode Motor'
                     : 'Mode Mobil',
-            onPressed: () {
+            onPressed:
+                () {
               setState(() {
                 _isMotorMode =
                     !_isMotorMode;
@@ -1044,10 +1312,13 @@ class _MapScreenState extends State<MapScreen> {
             },
           ),
 
-          // LAYER PETA
-          PopupMenuButton<String>(
+          // LAYER
+          PopupMenuButton<
+              String>(
             icon:
-                const Icon(Icons.layers),
+                const Icon(
+              Icons.layers,
+            ),
             tooltip:
                 'Mode Peta',
             onSelected:
@@ -1059,13 +1330,16 @@ class _MapScreenState extends State<MapScreen> {
             },
             itemBuilder:
                 (BuildContext context) {
-              return _tileProviders.keys
+              return _tileProviders
+                  .keys
                   .map(
                 (String key) {
                   return PopupMenuItem<
                       String>(
-                    value: key,
-                    child: Row(
+                    value:
+                        key,
+                    child:
+                        Row(
                       children: [
                         Icon(
                           key ==
@@ -1074,17 +1348,22 @@ class _MapScreenState extends State<MapScreen> {
                                   .dark_mode
                               : (key ==
                                       'Standard'
-                                  ? Icons.map
+                                  ? Icons
+                                      .map
                                   : Icons
                                       .public),
                           color:
                               Colors.blueAccent,
-                          size: 20,
+                          size:
+                              20,
                         ),
                         const SizedBox(
-                          width: 10,
+                          width:
+                              10,
                         ),
-                        Text(key),
+                        Text(
+                          key,
+                        ),
                       ],
                     ),
                   );
@@ -1095,7 +1374,12 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
 
-      body: Stack(
+      // ======================================================
+      // BODY
+      // ======================================================
+
+      body:
+          Stack(
         children: [
 
           // ==================================================
@@ -1105,17 +1389,15 @@ class _MapScreenState extends State<MapScreen> {
           FlutterMap(
             mapController:
                 _mapController,
-
-            options: MapOptions(
+            options:
+                MapOptions(
               initialCenter:
                   _titikKumpul,
-              initialZoom: 13.0,
-
-              // TAP PETA
+              initialZoom:
+                  13.0,
               onTap:
                   _handleMapTap,
             ),
-
             children: [
 
               // TILE
@@ -1136,7 +1418,8 @@ class _MapScreenState extends State<MapScreen> {
                           _titikKumpul,
                       _destinasi,
                     ],
-                    strokeWidth: 4.0,
+                    strokeWidth:
+                        4.0,
                     color:
                         _isMotorMode
                             ? Colors
@@ -1155,14 +1438,17 @@ class _MapScreenState extends State<MapScreen> {
                   Marker(
                     point:
                         _titikKumpul,
-                    width: 80,
-                    height: 80,
+                    width:
+                        80,
+                    height:
+                        80,
                     child:
                         const Icon(
                       Icons.location_on,
                       color:
                           Colors.red,
-                      size: 40,
+                      size:
+                          40,
                     ),
                   ),
 
@@ -1170,14 +1456,17 @@ class _MapScreenState extends State<MapScreen> {
                   Marker(
                     point:
                         _destinasi,
-                    width: 80,
-                    height: 80,
+                    width:
+                        80,
+                    height:
+                        80,
                     child:
                         const Icon(
                       Icons.flag,
                       color:
                           Colors.green,
-                      size: 38,
+                      size:
+                          38,
                     ),
                   ),
 
@@ -1187,9 +1476,12 @@ class _MapScreenState extends State<MapScreen> {
                     Marker(
                       point:
                           _currentPosition!,
-                      width: 50,
-                      height: 50,
-                      child: Icon(
+                      width:
+                          50,
+                      height:
+                          50,
+                      child:
+                          Icon(
                         _isMotorMode
                             ? Icons
                                 .two_wheeler
@@ -1197,7 +1489,8 @@ class _MapScreenState extends State<MapScreen> {
                                 .directions_car,
                         color:
                             Colors.blueAccent,
-                        size: 35,
+                        size:
+                            35,
                       ),
                     ),
 
@@ -1207,12 +1500,14 @@ class _MapScreenState extends State<MapScreen> {
                       return Marker(
                         point:
                             member.location,
-                        width: 80,
-                        height: 65,
-                        child: Column(
+                        width:
+                            80,
+                        height:
+                            65,
+                        child:
+                            Column(
                           children: [
 
-                            // NAMA
                             Container(
                               padding:
                                   const EdgeInsets
@@ -1229,17 +1524,19 @@ class _MapScreenState extends State<MapScreen> {
                                 borderRadius:
                                     BorderRadius
                                         .circular(
-                                            4),
+                                  4,
+                                ),
                                 boxShadow: const [
                                   BoxShadow(
                                     blurRadius:
                                         2,
-                                    color: Colors
-                                        .black26,
+                                    color:
+                                        Colors.black26,
                                   ),
                                 ],
                               ),
-                              child: Text(
+                              child:
+                                  Text(
                                 member.name
                                     .split(
                                         ' ')
@@ -1249,21 +1546,19 @@ class _MapScreenState extends State<MapScreen> {
                                   fontSize:
                                       10,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                             ),
 
-                            // ICON KENDARAAN
                             Icon(
                               _getVehicleIcon(
-                                member
-                                    .vehicleType,
+                                member.vehicleType,
                               ),
                               color:
                                   member.color,
-                              size: 30,
+                              size:
+                                  30,
                             ),
                           ],
                         ),
@@ -1279,23 +1574,33 @@ class _MapScreenState extends State<MapScreen> {
           // INSTRUKSI PILIH TITIK
           // ==================================================
 
-          if (_mapPickingMode != null)
+          if (_mapPickingMode !=
+              null)
             Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: Card(
+              top:
+                  16,
+              left:
+                  16,
+              right:
+                  16,
+              child:
+                  Card(
                 color:
                     Colors.blueAccent,
-                elevation: 6,
-                child: Padding(
+                elevation:
+                    6,
+                child:
+                    Padding(
                   padding:
                       const EdgeInsets
                           .symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                    horizontal:
+                        16,
+                    vertical:
+                        12,
                   ),
-                  child: Row(
+                  child:
+                      Row(
                     children: [
                       const Icon(
                         Icons.touch_app,
@@ -1303,10 +1608,12 @@ class _MapScreenState extends State<MapScreen> {
                             Colors.white,
                       ),
                       const SizedBox(
-                        width: 10,
+                        width:
+                            10,
                       ),
                       Expanded(
-                        child: Text(
+                        child:
+                            Text(
                           _mapPickingMode ==
                                   'kumpul'
                               ? 'Tap peta untuk memilih TITIK KUMPUL'
@@ -1316,8 +1623,7 @@ class _MapScreenState extends State<MapScreen> {
                             color:
                                 Colors.white,
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ),
@@ -1328,7 +1634,8 @@ class _MapScreenState extends State<MapScreen> {
                           color:
                               Colors.white,
                         ),
-                        onPressed: () {
+                        onPressed:
+                            () {
                           setState(() {
                             _mapPickingMode =
                                 null;
@@ -1342,79 +1649,119 @@ class _MapScreenState extends State<MapScreen> {
             ),
 
           // ==================================================
-          // INFO JARAK & ETA
+          // INFO JARAK / GPS
           // ==================================================
 
-          if (_mapPickingMode == null)
+          if (_mapPickingMode ==
+              null)
             Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: Card(
-                elevation: 4,
+              top:
+                  16,
+              left:
+                  16,
+              right:
+                  16,
+              child:
+                  Card(
+                elevation:
+                    4,
                 shape:
                     RoundedRectangleBorder(
                   borderRadius:
-                      BorderRadius
-                          .circular(12),
+                      BorderRadius.circular(
+                    12,
+                  ),
                 ),
-                child: Padding(
+                child:
+                    Padding(
                   padding:
                       const EdgeInsets
                           .symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                    horizontal:
+                        16,
+                    vertical:
+                        12,
                   ),
-                  child: Row(
+                  child:
+                      Row(
                     mainAxisAlignment:
                         MainAxisAlignment
                             .spaceAround,
                     children: [
 
+                      // GPS STATUS
                       Column(
                         mainAxisSize:
                             MainAxisSize.min,
                         children: [
-                          Text(
-                            _isMotorMode
-                                ? 'Rute Motor'
-                                : 'Rute Mobil',
-                            style:
-                                const TextStyle(
-                              fontSize: 12,
-                              color:
-                                  Colors.grey,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                            ),
+                          Row(
+                            mainAxisSize:
+                                MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _currentPosition !=
+                                        null
+                                    ? Icons.gps_fixed
+                                    : Icons.gps_not_fixed,
+                                size:
+                                    16,
+                                color:
+                                    _currentPosition !=
+                                            null
+                                        ? Colors.green
+                                        : Colors.orange,
+                              ),
+                              const SizedBox(
+                                width:
+                                    5,
+                              ),
+                              Text(
+                                _gpsStatus,
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      12,
+                                  color:
+                                      _currentPosition !=
+                                              null
+                                          ? Colors.green
+                                          : Colors.orange,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(
-                            height: 4,
+                            height:
+                                4,
                           ),
                           Text(
                             _currentPosition !=
                                     null
                                 ? '${_distanceInKm.toStringAsFixed(1)} km'
-                                : 'Mencari GPS...',
+                                : '--',
                             style:
                                 const TextStyle(
-                              fontSize: 16,
+                              fontSize:
+                                  16,
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
 
                       Container(
-                        height: 30,
-                        width: 1,
-                        color: Colors
-                            .grey.shade300,
+                        height:
+                            30,
+                        width:
+                            1,
+                        color:
+                            Colors.grey.shade300,
                       ),
 
+                      // ETA
                       Column(
                         mainAxisSize:
                             MainAxisSize.min,
@@ -1423,13 +1770,15 @@ class _MapScreenState extends State<MapScreen> {
                             'Est. Waktu',
                             style:
                                 TextStyle(
-                              fontSize: 12,
+                              fontSize:
+                                  12,
                               color:
                                   Colors.grey,
                             ),
                           ),
                           const SizedBox(
-                            height: 4,
+                            height:
+                                4,
                           ),
                           Text(
                             _currentPosition !=
@@ -1438,10 +1787,10 @@ class _MapScreenState extends State<MapScreen> {
                                 : '--',
                             style:
                                 const TextStyle(
-                              fontSize: 16,
+                              fontSize:
+                                  16,
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                               color:
                                   Colors.blueAccent,
                             ),
@@ -1459,11 +1808,14 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            bottom: 110,
-            right: 16,
+            bottom:
+                110,
+            right:
+                16,
             child:
                 FloatingActionButton(
-              mini: true,
+              mini:
+                  true,
               backgroundColor:
                   Colors.white,
               onPressed:
@@ -1482,7 +1834,8 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            bottom: 25,
+            bottom:
+                25,
             left:
                 MediaQuery.of(context)
                         .size
@@ -1493,7 +1846,8 @@ class _MapScreenState extends State<MapScreen> {
                         .size
                         .width *
                     0.2,
-            child: Column(
+            child:
+                Column(
               mainAxisSize:
                   MainAxisSize.min,
               children: [
@@ -1502,26 +1856,31 @@ class _MapScreenState extends State<MapScreen> {
                   padding:
                       const EdgeInsets
                           .symmetric(
-                    horizontal: 12,
-                    vertical: 4,
+                    horizontal:
+                        12,
+                    vertical:
+                        4,
                   ),
                   decoration:
                       BoxDecoration(
-                    color: Colors.black
-                        .withOpacity(
-                            0.7),
+                    color:
+                        Colors.black.withOpacity(
+                      0.7,
+                    ),
                     borderRadius:
-                        BorderRadius
-                            .circular(
-                                12),
+                        BorderRadius.circular(
+                      12,
+                    ),
                   ),
-                  child: Text(
+                  child:
+                      Text(
                     _pttStatusText,
                     style:
                         const TextStyle(
                       color:
                           Colors.white,
-                      fontSize: 12,
+                      fontSize:
+                          12,
                     ),
                     textAlign:
                         TextAlign.center,
@@ -1529,19 +1888,20 @@ class _MapScreenState extends State<MapScreen> {
                 ),
 
                 const SizedBox(
-                  height: 8,
+                  height:
+                      8,
                 ),
 
                 GestureDetector(
-                  onTapDown: (_) =>
-                      _startTransmission(),
-
-                  onTapUp: (_) =>
-                      _stopTransmission(),
-
-                  onTapCancel: () =>
-                      _stopTransmission(),
-
+                  onTapDown:
+                      (_) =>
+                          _startTransmission(),
+                  onTapUp:
+                      (_) =>
+                          _stopTransmission(),
+                  onTapCancel:
+                      () =>
+                          _stopTransmission(),
                   child:
                       AnimatedContainer(
                     duration:
@@ -1568,13 +1928,13 @@ class _MapScreenState extends State<MapScreen> {
                           BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: _isTalking
-                              ? Colors
-                                  .red
-                                  .withOpacity(
-                                      0.6)
-                              : Colors
-                                  .black26,
+                          color:
+                              _isTalking
+                                  ? Colors.red
+                                      .withOpacity(
+                                      0.6,
+                                    )
+                                  : Colors.black26,
                           blurRadius:
                               _isTalking
                                   ? 15
@@ -1586,7 +1946,8 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                       ],
                     ),
-                    child: Icon(
+                    child:
+                        Icon(
                       _isTalking
                           ? Icons.mic
                           : Icons.mic_none,
@@ -1608,22 +1969,30 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            bottom: 12,
-            right: 12,
-            child: Container(
+            bottom:
+                12,
+            right:
+                12,
+            child:
+                Container(
               padding:
                   const EdgeInsets
                       .symmetric(
-                horizontal: 8,
-                vertical: 4,
+                horizontal:
+                    8,
+                vertical:
+                    4,
               ),
               decoration:
                   BoxDecoration(
-                color: Colors.black
-                    .withOpacity(0.6),
+                color:
+                    Colors.black.withOpacity(
+                  0.6,
+                ),
                 borderRadius:
-                    BorderRadius
-                        .circular(6),
+                    BorderRadius.circular(
+                  6,
+                ),
               ),
               child:
                   const Text(
@@ -1632,7 +2001,8 @@ class _MapScreenState extends State<MapScreen> {
                     TextStyle(
                   color:
                       Colors.white,
-                  fontSize: 11,
+                  fontSize:
+                      11,
                   fontWeight:
                       FontWeight.w500,
                 ),
