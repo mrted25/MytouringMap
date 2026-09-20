@@ -1644,27 +1644,3 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
-
-Cara pakainya
-
-Tekan ikon pin "📍" di kanan atas.
-
-Akan muncul:
-
-Titik Kumpul → tekan → dialog tertutup → muncul tulisan "Tap peta untuk memilih TITIK KUMPUL" → tap lokasi di peta.
-
-Begitu juga Destinasi.
-
-Untuk anggota, tekan Tambah Anggota:
-
-Nama Anggota
-[ Andi (Sweeper) ]
-
-Jenis Kendaraan
-[ 🏍️ Motor       ▼ ]
-
-       [ SIMPAN ]
-
-Setelah disimpan, marker Andi di peta akan memakai icon kendaraan yang dipilih.
-
-Satu hal penting: saya sengaja belum membuat rute mengikuti jalan. Kode sekarang masih menghitung jarak garis lurus seperti versi kamu sebelumnya. Setelah fitur pilih titik ini sudah berhasil di HP, kita bisa lanjut tahap berikutnya membuat rute benar-benar mengikuti jalan + navigasi touring.
