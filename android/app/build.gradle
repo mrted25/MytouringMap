@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.touring_map_app'
-    compileSdk 34
+    namespace 'com.tedapp.touringmap'
+    compileSdk 36
 
     defaultConfig {
-        applicationId 'com.example.touring_map_app'
+        applicationId 'com.tedapp.touringmap'
         minSdk 21
         targetSdk 34
         versionCode 1
