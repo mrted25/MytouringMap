@@ -164,20 +164,75 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _checkLocationPermission() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+  // Cek apakah GPS/location service HP aktif
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
-
-    if (permission == LocationPermission.deniedForever) return;
-
-    _startLocationUpdates();
+  if (!serviceEnabled) {
+    debugPrint('GPS SERVICE MATI');
+    return;
   }
 
+  // Cek permission
+  LocationPermission permission = await Geolocator.checkPermission();
+
+  debugPrint('Location permission: $permission');
+
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+
+    debugPrint('Permission setelah request: $permission');
+
+    if (permission == LocationPermission.denied) {
+      debugPrint('LOCATION PERMISSION DENIED');
+      return;
+    }
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    debugPrint('LOCATION PERMISSION DENIED FOREVER');
+    return;
+  }
+
+  // Permission sudah OK
+  await _getCurrentLocation();
+
+  // Mulai monitoring lokasi
+  _startLocationUpdates();
+}
+  
+Future<void> _getCurrentLocation() async {
+  try {
+    debugPrint('Mencari posisi GPS...');
+
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    debugPrint(
+      'GPS berhasil: ${position.latitude}, ${position.longitude}',
+    );
+
+    if (mounted) {
+      setState(() {
+        _currentPosition = LatLng(
+          position.latitude,
+          position.longitude,
+        );
+
+        _calculateDistanceAndEta();
+      });
+
+      // Pusatkan map ke posisi kita
+      _mapController.move(
+        _currentPosition!,
+        15.0,
+      );
+    }
+  } catch (e) {
+    debugPrint('ERROR GPS: $e');
+  }
+}
+  
   void _startLocationUpdates() {
     const LocationSettings locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
