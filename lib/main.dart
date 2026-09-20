@@ -83,7 +83,7 @@ class _MapScreenState extends State<MapScreen> {
       const LatLng(-6.229728, 106.846548);
 
   // ==========================================================
-  // MODE PILIH TITIK DI PETA
+  // MODE PILIH TITIK
   // ==========================================================
 
   String? _mapPickingMode;
@@ -101,6 +101,16 @@ class _MapScreenState extends State<MapScreen> {
   int _estimatedMinutes = 0;
 
   String _gpsStatus = 'Mencari GPS...';
+
+  bool _locationReady = false;
+
+  // ==========================================================
+  // TOURING
+  // ==========================================================
+
+  bool _isTouring = false;
+
+  DateTime? _touringStartTime;
 
   // ==========================================================
   // MODE KENDARAAN
@@ -126,7 +136,7 @@ class _MapScreenState extends State<MapScreen> {
   };
 
   // ==========================================================
-  // DAFTAR ANGGOTA
+  // ANGGOTA ROMBONGAN
   // ==========================================================
 
   final List<Member> _groupMembers = [
@@ -164,8 +174,8 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
 
-    // GPS
-    _checkLocationPermission();
+    // Jalankan GPS terlebih dahulu.
+    _initializeGPS();
 
     // Agora
     if (!kIsWeb) {
@@ -177,200 +187,163 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // AGORA
+  // GPS INITIALIZATION
   // ==========================================================
 
-  Future<void> _initAgoraPTT() async {
-    await [Permission.microphone].request();
-
-    try {
-      _engine = createAgoraRtcEngine();
-
-      await _engine!.initialize(
-        const RtcEngineContext(
-          appId: agoraAppId,
-          channelProfile:
-              ChannelProfileType.channelProfileCommunication,
-        ),
-      );
-
-      _engine!.registerEventHandler(
-        RtcEngineEventHandler(
-          onJoinChannelSuccess:
-              (RtcConnection connection, int elapsed) {
-            if (!mounted) return;
-
-            setState(() {
-              _isEngineReady = true;
-
-              _pttStatusText =
-                  'Tekan & Tahan untuk Bicara';
-            });
-          },
-        ),
-      );
-
-      await _engine!.enableAudio();
-
-      await _engine!.muteLocalAudioStream(true);
-
-      await _engine!.joinChannel(
-        token: '',
-        channelId: channelName,
-        uid: 0,
-        options: const ChannelMediaOptions(),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _pttStatusText =
-            'Tekan & Tahan untuk Bicara';
-      });
-    }
-  }
-
-  Future<void> _startTransmission() async {
-    if (_engine != null && _isEngineReady) {
-      await _engine!.muteLocalAudioStream(false);
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isTalking = true;
-
-      _pttStatusText =
-          'Transmisi Suara Aktif...';
-    });
-  }
-
-  Future<void> _stopTransmission() async {
-    if (_engine != null && _isEngineReady) {
-      await _engine!.muteLocalAudioStream(true);
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isTalking = false;
-
-      _pttStatusText =
-          'Tekan & Tahan untuk Bicara';
-    });
-  }
-
-  // ==========================================================
-  // GPS
-  // ==========================================================
-
-  Future<void> _checkLocationPermission() async {
+  Future<void> _initializeGPS() async {
     debugPrint('================================');
-    debugPrint('MEMERIKSA GPS');
+    debugPrint('MULAI INISIALISASI GPS');
     debugPrint('================================');
-
-    bool serviceEnabled =
-        await Geolocator.isLocationServiceEnabled();
-
-    if (!serviceEnabled) {
-      debugPrint('GPS SERVICE MATI');
-
-      if (mounted) {
-        setState(() {
-          _gpsStatus = 'GPS Tidak Aktif';
-        });
-      }
-
-      return;
-    }
-
-    LocationPermission permission =
-        await Geolocator.checkPermission();
-
-    debugPrint(
-      'Location permission: $permission',
-    );
-
-    // ========================================================
-    // REQUEST IZIN GPS
-    // ========================================================
-
-    if (permission ==
-        LocationPermission.denied) {
-      debugPrint(
-        'Meminta izin lokasi...',
-      );
-
-      permission =
-          await Geolocator.requestPermission();
-
-      debugPrint(
-        'Permission setelah request: $permission',
-      );
-    }
-
-    // ========================================================
-    // DITOLAK
-    // ========================================================
-
-    if (permission ==
-        LocationPermission.denied) {
-      debugPrint(
-        'LOCATION PERMISSION DENIED',
-      );
-
-      if (mounted) {
-        setState(() {
-          _gpsStatus =
-              'Izin GPS Ditolak';
-        });
-      }
-
-      return;
-    }
-
-    // ========================================================
-    // DIBLOKIR PERMANEN
-    // ========================================================
-
-    if (permission ==
-        LocationPermission.deniedForever) {
-      debugPrint(
-        'LOCATION PERMISSION DENIED FOREVER',
-      );
-
-      if (mounted) {
-        setState(() {
-          _gpsStatus =
-              'Izin GPS Diblokir';
-        });
-      }
-
-      return;
-    }
-
-    // ========================================================
-    // IZIN SUDAH ADA
-    // ========================================================
-
-    debugPrint(
-      'IZIN GPS OK',
-    );
 
     if (mounted) {
       setState(() {
-        _gpsStatus =
-            'Mendapatkan posisi...';
+        _gpsStatus = 'Memeriksa GPS...';
       });
     }
 
-    await _getCurrentLocation();
+    try {
+      // --------------------------------------------------------
+      // CEK GPS SERVICE
+      // --------------------------------------------------------
 
-    _startLocationUpdates();
+      bool serviceEnabled =
+          await Geolocator.isLocationServiceEnabled();
+
+      debugPrint(
+        'Location service: $serviceEnabled',
+      );
+
+      if (!serviceEnabled) {
+        if (mounted) {
+          setState(() {
+            _gpsStatus =
+                'GPS Tidak Aktif';
+          });
+        }
+
+        _showMessage(
+          'Aktifkan GPS/Lokasi di HP terlebih dahulu',
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // CEK PERMISSION
+      // --------------------------------------------------------
+
+      LocationPermission permission =
+          await Geolocator.checkPermission();
+
+      debugPrint(
+        'Permission awal: $permission',
+      );
+
+      // --------------------------------------------------------
+      // REQUEST PERMISSION
+      // --------------------------------------------------------
+
+      if (permission ==
+          LocationPermission.denied) {
+        debugPrint(
+          'Meminta izin lokasi...',
+        );
+
+        if (mounted) {
+          setState(() {
+            _gpsStatus =
+                'Meminta izin GPS...';
+          });
+        }
+
+        permission =
+            await Geolocator.requestPermission();
+
+        debugPrint(
+          'Permission setelah request: $permission',
+        );
+      }
+
+      // --------------------------------------------------------
+      // DENIED
+      // --------------------------------------------------------
+
+      if (permission ==
+          LocationPermission.denied) {
+        if (mounted) {
+          setState(() {
+            _gpsStatus =
+                'Izin GPS Ditolak';
+          });
+        }
+
+        _showMessage(
+          'Izin lokasi diperlukan untuk tracking',
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // DENIED FOREVER
+      // --------------------------------------------------------
+
+      if (permission ==
+          LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() {
+            _gpsStatus =
+                'Izin GPS Diblokir';
+          });
+        }
+
+        _showMessage(
+          'Izin GPS diblokir. Buka Settings aplikasi.',
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // PERMISSION OK
+      // --------------------------------------------------------
+
+      debugPrint(
+        'IZIN GPS OK',
+      );
+
+      if (mounted) {
+        setState(() {
+          _gpsStatus =
+              'Mendapatkan posisi...';
+        });
+      }
+
+      await _getCurrentLocation();
+
+      if (_currentPosition != null) {
+        _startLocationUpdates();
+      }
+    } catch (e) {
+      debugPrint(
+        'ERROR INITIALIZE GPS: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _gpsStatus =
+            'GPS Error';
+      });
+
+      _showMessage(
+        'Gagal menginisialisasi GPS',
+      );
+    }
   }
 
   // ==========================================================
-  // AMBIL POSISI GPS
+  // GET CURRENT LOCATION
   // ==========================================================
 
   Future<void> _getCurrentLocation() async {
@@ -383,31 +356,24 @@ class _MapScreenState extends State<MapScreen> {
           await Geolocator.getCurrentPosition(
         desiredAccuracy:
             LocationAccuracy.high,
+        timeLimit:
+            const Duration(
+          seconds: 20,
+        ),
       );
 
-      debugPrint(
-        '================================',
-      );
-
-      debugPrint(
-        'GPS BERHASIL',
-      );
-
+      debugPrint('================================');
+      debugPrint('GPS BERHASIL');
       debugPrint(
         'Latitude : ${position.latitude}',
       );
-
       debugPrint(
         'Longitude: ${position.longitude}',
       );
-
       debugPrint(
         'Accuracy : ${position.accuracy}',
       );
-
-      debugPrint(
-        '================================',
-      );
+      debugPrint('================================');
 
       if (!mounted) return;
 
@@ -420,6 +386,8 @@ class _MapScreenState extends State<MapScreen> {
         _gpsStatus =
             'GPS Aktif';
 
+        _locationReady = true;
+
         _calculateDistanceAndEta();
       });
 
@@ -430,7 +398,7 @@ class _MapScreenState extends State<MapScreen> {
       );
     } catch (e) {
       debugPrint(
-        'ERROR GPS: $e',
+        'ERROR GET CURRENT LOCATION: $e',
       );
 
       if (!mounted) return;
@@ -438,22 +406,30 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _gpsStatus =
             'Gagal mendapatkan GPS';
+        _locationReady = false;
       });
+
+      _showMessage(
+        'GPS belum mendapatkan posisi',
+      );
     }
   }
 
   // ==========================================================
-  // UPDATE GPS REALTIME
+  // GPS REALTIME
   // ==========================================================
 
   void _startLocationUpdates() {
-    // Hentikan stream lama jika ada
     _positionStream?.cancel();
 
     const LocationSettings locationSettings =
         LocationSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 5,
+    );
+
+    debugPrint(
+      'GPS realtime dimulai',
     );
 
     _positionStream =
@@ -470,18 +446,31 @@ class _MapScreenState extends State<MapScreen> {
 
         if (!mounted) return;
 
+        final newPosition = LatLng(
+          position.latitude,
+          position.longitude,
+        );
+
         setState(() {
           _currentPosition =
-              LatLng(
-            position.latitude,
-            position.longitude,
-          );
+              newPosition;
 
           _gpsStatus =
               'GPS Aktif';
 
+          _locationReady = true;
+
           _calculateDistanceAndEta();
         });
+
+        // Hanya mengikuti posisi otomatis
+        // ketika Touring sedang aktif.
+        if (_isTouring) {
+          _mapController.move(
+            newPosition,
+            16.0,
+          );
+        }
       },
       onError: (error) {
         debugPrint(
@@ -493,8 +482,56 @@ class _MapScreenState extends State<MapScreen> {
         setState(() {
           _gpsStatus =
               'GPS Error';
+          _locationReady = false;
         });
       },
+    );
+  }
+
+  // ==========================================================
+  // MULAI TOURING
+  // ==========================================================
+
+  void _startTouring() {
+    if (!_locationReady ||
+        _currentPosition == null) {
+      _showMessage(
+        'Posisi GPS belum tersedia',
+      );
+
+      return;
+    }
+
+    setState(() {
+      _isTouring = true;
+
+      _touringStartTime =
+          DateTime.now();
+
+      _calculateDistanceAndEta();
+    });
+
+    _mapController.move(
+      _currentPosition!,
+      16.0,
+    );
+
+    _showMessage(
+      'Touring dimulai',
+    );
+  }
+
+  // ==========================================================
+  // STOP TOURING
+  // ==========================================================
+
+  void _stopTouring() {
+    setState(() {
+      _isTouring = false;
+    });
+
+    _showMessage(
+      'Touring dihentikan',
     );
   }
 
@@ -507,7 +544,7 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    double distanceInMeters =
+    final double distanceInMeters =
         Geolocator.distanceBetween(
       _currentPosition!.latitude,
       _currentPosition!.longitude,
@@ -518,7 +555,7 @@ class _MapScreenState extends State<MapScreen> {
     _distanceInKm =
         distanceInMeters / 1000;
 
-    double speedKmPerHour =
+    final double speedKmPerHour =
         _isMotorMode
             ? 45.0
             : 35.0;
@@ -538,7 +575,7 @@ class _MapScreenState extends State<MapScreen> {
     if (_currentPosition != null) {
       _mapController.move(
         _currentPosition!,
-        15.0,
+        16.0,
       );
     } else {
       _showMessage(
@@ -598,6 +635,10 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  // ==========================================================
+  // MAP TAP
+  // ==========================================================
+
   void _handleMapTap(
     TapPosition tapPosition,
     LatLng point,
@@ -610,7 +651,6 @@ class _MapScreenState extends State<MapScreen> {
         'kumpul') {
       setState(() {
         _titikKumpul = point;
-
         _mapPickingMode = null;
       });
 
@@ -650,6 +690,8 @@ class _MapScreenState extends State<MapScreen> {
   void _showMessage(
     String message,
   ) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context)
         .showSnackBar(
       SnackBar(
@@ -664,7 +706,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // DIALOG ATUR RUTE
+  // ATUR RUTE
   // ==========================================================
 
   void _showSetRouteDialog() {
@@ -774,7 +816,7 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   void _showAddMemberDialog() {
-    TextEditingController
+    final TextEditingController
         nameController =
         TextEditingController();
 
@@ -896,8 +938,7 @@ class _MapScreenState extends State<MapScreen> {
                               Row(
                             children: [
                               Icon(
-                                Icons
-                                    .directions_car_filled,
+                                Icons.directions_car_filled,
                               ),
                               SizedBox(
                                 width: 10,
@@ -915,8 +956,7 @@ class _MapScreenState extends State<MapScreen> {
                               Row(
                             children: [
                               Icon(
-                                Icons
-                                    .local_shipping,
+                                Icons.local_shipping,
                               ),
                               SizedBox(
                                 width: 10,
@@ -934,8 +974,7 @@ class _MapScreenState extends State<MapScreen> {
                               Row(
                             children: [
                               Icon(
-                                Icons
-                                    .airport_shuttle,
+                                Icons.airport_shuttle,
                               ),
                               SizedBox(
                                 width: 10,
@@ -1117,8 +1156,8 @@ class _MapScreenState extends State<MapScreen> {
                     icon:
                         const Icon(
                       Icons.person_add,
-                      color: Colors
-                          .blueAccent,
+                      color:
+                          Colors.blueAccent,
                     ),
                     onPressed:
                         () {
@@ -1144,8 +1183,7 @@ class _MapScreenState extends State<MapScreen> {
                       Icon(
                     _isMotorMode
                         ? Icons.two_wheeler
-                        : Icons
-                            .directions_car,
+                        : Icons.directions_car,
                     color:
                         Colors.white,
                   ),
@@ -1198,7 +1236,8 @@ class _MapScreenState extends State<MapScreen> {
                       Icons.check_circle,
                       color:
                           Colors.green,
-                      size: 20,
+                      size:
+                          20,
                     ),
                   );
                 },
@@ -1344,14 +1383,11 @@ class _MapScreenState extends State<MapScreen> {
                         Icon(
                           key ==
                                   'Dark Mode'
-                              ? Icons
-                                  .dark_mode
+                              ? Icons.dark_mode
                               : (key ==
                                       'Standard'
-                                  ? Icons
-                                      .map
-                                  : Icons
-                                      .public),
+                                  ? Icons.map
+                                  : Icons.public),
                           color:
                               Colors.blueAccent,
                           size:
@@ -1383,7 +1419,7 @@ class _MapScreenState extends State<MapScreen> {
         children: [
 
           // ==================================================
-          // PETA
+          // MAP
           // ==================================================
 
           FlutterMap(
@@ -1409,7 +1445,10 @@ class _MapScreenState extends State<MapScreen> {
                     'com.tedapp.touringmap',
               ),
 
-              // GARIS RUTE
+              // =================================================
+              // GARIS RUTE SEMENTARA
+              // =================================================
+
               PolylineLayer(
                 polylines: [
                   Polyline(
@@ -1422,15 +1461,16 @@ class _MapScreenState extends State<MapScreen> {
                         4.0,
                     color:
                         _isMotorMode
-                            ? Colors
-                                .blueAccent
-                            : Colors
-                                .orangeAccent,
+                            ? Colors.blueAccent
+                            : Colors.orangeAccent,
                   ),
                 ],
               ),
 
+              // =================================================
               // MARKER
+              // =================================================
+
               MarkerLayer(
                 markers: [
 
@@ -1477,20 +1517,43 @@ class _MapScreenState extends State<MapScreen> {
                       point:
                           _currentPosition!,
                       width:
-                          50,
+                          60,
                       height:
-                          50,
+                          60,
                       child:
-                          Icon(
-                        _isMotorMode
-                            ? Icons
-                                .two_wheeler
-                            : Icons
-                                .directions_car,
-                        color:
-                            Colors.blueAccent,
-                        size:
-                            35,
+                          Container(
+                        decoration:
+                            BoxDecoration(
+                          shape:
+                              BoxShape.circle,
+                          color:
+                              Colors.blueAccent,
+                          border:
+                              Border.all(
+                            color:
+                                Colors.white,
+                            width:
+                                3,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color:
+                                  Colors.black38,
+                              blurRadius:
+                                  5,
+                            ),
+                          ],
+                        ),
+                        child:
+                            Icon(
+                          _isMotorMode
+                              ? Icons.two_wheeler
+                              : Icons.directions_car,
+                          color:
+                              Colors.white,
+                          size:
+                              30,
+                        ),
                       ),
                     ),
 
@@ -1510,8 +1573,7 @@ class _MapScreenState extends State<MapScreen> {
 
                             Container(
                               padding:
-                                  const EdgeInsets
-                                      .symmetric(
+                                  const EdgeInsets.symmetric(
                                 horizontal:
                                     5,
                                 vertical:
@@ -1522,8 +1584,7 @@ class _MapScreenState extends State<MapScreen> {
                                 color:
                                     Colors.white,
                                 borderRadius:
-                                    BorderRadius
-                                        .circular(
+                                    BorderRadius.circular(
                                   4,
                                 ),
                                 boxShadow: const [
@@ -1538,8 +1599,7 @@ class _MapScreenState extends State<MapScreen> {
                               child:
                                   Text(
                                 member.name
-                                    .split(
-                                        ' ')
+                                    .split(' ')
                                     .first,
                                 style:
                                     const TextStyle(
@@ -1592,8 +1652,7 @@ class _MapScreenState extends State<MapScreen> {
                 child:
                     Padding(
                   padding:
-                      const EdgeInsets
-                          .symmetric(
+                      const EdgeInsets.symmetric(
                     horizontal:
                         16,
                     vertical:
@@ -1649,7 +1708,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
 
           // ==================================================
-          // INFO JARAK / GPS
+          // INFO GPS / JARAK / ETA
           // ==================================================
 
           if (_mapPickingMode ==
@@ -1675,76 +1734,47 @@ class _MapScreenState extends State<MapScreen> {
                 child:
                     Padding(
                   padding:
-                      const EdgeInsets
-                          .symmetric(
+                      const EdgeInsets.symmetric(
                     horizontal:
                         16,
                     vertical:
-                        12,
+                        10,
                   ),
                   child:
-                      Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceAround,
+                      Column(
                     children: [
 
                       // GPS STATUS
-                      Column(
-                        mainAxisSize:
-                            MainAxisSize.min,
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment
+                                .center,
                         children: [
-                          Row(
-                            mainAxisSize:
-                                MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _currentPosition !=
-                                        null
-                                    ? Icons.gps_fixed
-                                    : Icons.gps_not_fixed,
-                                size:
-                                    16,
-                                color:
-                                    _currentPosition !=
-                                            null
-                                        ? Colors.green
-                                        : Colors.orange,
-                              ),
-                              const SizedBox(
-                                width:
-                                    5,
-                              ),
-                              Text(
-                                _gpsStatus,
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      12,
-                                  color:
-                                      _currentPosition !=
-                                              null
-                                          ? Colors.green
-                                          : Colors.orange,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          Icon(
+                            _locationReady
+                                ? Icons.gps_fixed
+                                : Icons.gps_not_fixed,
+                            size:
+                                17,
+                            color:
+                                _locationReady
+                                    ? Colors.green
+                                    : Colors.orange,
                           ),
                           const SizedBox(
-                            height:
-                                4,
+                            width:
+                                6,
                           ),
                           Text(
-                            _currentPosition !=
-                                    null
-                                ? '${_distanceInKm.toStringAsFixed(1)} km'
-                                : '--',
+                            _gpsStatus,
                             style:
-                                const TextStyle(
+                                TextStyle(
                               fontSize:
-                                  16,
+                                  12,
+                              color:
+                                  _locationReady
+                                      ? Colors.green
+                                      : Colors.orange,
                               fontWeight:
                                   FontWeight.bold,
                             ),
@@ -1752,48 +1782,123 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
 
-                      Container(
+                      const SizedBox(
                         height:
-                            30,
-                        width:
-                            1,
-                        color:
-                            Colors.grey.shade300,
+                            8,
                       ),
 
-                      // ETA
-                      Column(
-                        mainAxisSize:
-                            MainAxisSize.min,
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment
+                                .spaceAround,
                         children: [
-                          const Text(
-                            'Est. Waktu',
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  12,
-                              color:
-                                  Colors.grey,
-                            ),
+
+                          // JARAK
+                          Column(
+                            children: [
+                              const Text(
+                                'Jarak',
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      11,
+                                  color:
+                                      Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                _locationReady
+                                    ? '${_distanceInKm.toStringAsFixed(1)} km'
+                                    : '--',
+                                style:
+                                    const TextStyle(
+                                  fontSize:
+                                      16,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(
+
+                          Container(
                             height:
-                                4,
+                                30,
+                            width:
+                                1,
+                            color:
+                                Colors.grey.shade300,
                           ),
-                          Text(
-                            _currentPosition !=
-                                    null
-                                ? '$_estimatedMinutes mnt'
-                                : '--',
-                            style:
-                                const TextStyle(
-                              fontSize:
-                                  16,
-                              fontWeight:
-                                  FontWeight.bold,
-                              color:
-                                  Colors.blueAccent,
-                            ),
+
+                          // ETA
+                          Column(
+                            children: [
+                              const Text(
+                                'Est. Waktu',
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      11,
+                                  color:
+                                      Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                _locationReady
+                                    ? '$_estimatedMinutes mnt'
+                                    : '--',
+                                style:
+                                    const TextStyle(
+                                  fontSize:
+                                      16,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  color:
+                                      Colors.blueAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          Container(
+                            height:
+                                30,
+                            width:
+                                1,
+                            color:
+                                Colors.grey.shade300,
+                          ),
+
+                          // STATUS TOURING
+                          Column(
+                            children: [
+                              const Text(
+                                'Status',
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      11,
+                                  color:
+                                      Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                _isTouring
+                                    ? 'AKTIF'
+                                    : 'SIAP',
+                                style:
+                                    TextStyle(
+                                  fontSize:
+                                      15,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  color:
+                                      _isTouring
+                                          ? Colors.green
+                                          : Colors.orange,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1804,12 +1909,76 @@ class _MapScreenState extends State<MapScreen> {
             ),
 
           // ==================================================
+          // TOMBOL MULAI / STOP TOURING
+          // ==================================================
+
+          Positioned(
+            bottom:
+                155,
+            left:
+                25,
+            right:
+                25,
+            child:
+                SizedBox(
+              height:
+                  52,
+              child:
+                  ElevatedButton.icon(
+                onPressed:
+                    _isTouring
+                        ? _stopTouring
+                        : _startTouring,
+                icon:
+                    Icon(
+                  _isTouring
+                      ? Icons.stop
+                      : Icons.play_arrow,
+                  size:
+                      28,
+                ),
+                label:
+                    Text(
+                  _isTouring
+                      ? 'STOP TOURING'
+                      : 'MULAI TOURING',
+                  style:
+                      const TextStyle(
+                    fontSize:
+                        17,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                style:
+                    ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _isTouring
+                          ? Colors.red
+                          : Colors.green,
+                  foregroundColor:
+                      Colors.white,
+                  elevation:
+                      5,
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(
+                      14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ==================================================
           // CENTER GPS
           // ==================================================
 
           Positioned(
             bottom:
-                110,
+                105,
             right:
                 16,
             child:
@@ -1854,8 +2023,7 @@ class _MapScreenState extends State<MapScreen> {
 
                 Container(
                   padding:
-                      const EdgeInsets
-                          .symmetric(
+                      const EdgeInsets.symmetric(
                     horizontal:
                         12,
                     vertical:
@@ -1921,8 +2089,7 @@ class _MapScreenState extends State<MapScreen> {
                         BoxDecoration(
                       color:
                           _isTalking
-                              ? Colors
-                                  .redAccent
+                              ? Colors.redAccent
                               : Colors.red,
                       shape:
                           BoxShape.circle,
@@ -1976,8 +2143,7 @@ class _MapScreenState extends State<MapScreen> {
             child:
                 Container(
               padding:
-                  const EdgeInsets
-                      .symmetric(
+                  const EdgeInsets.symmetric(
                 horizontal:
                     8,
                 vertical:
@@ -2012,5 +2178,126 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
     );
+  }
+
+  // ==========================================================
+  // AGORA PTT
+  // ==========================================================
+
+  Future<void> _initAgoraPTT() async {
+    await [Permission.microphone].request();
+
+    try {
+      _engine =
+          createAgoraRtcEngine();
+
+      await _engine!.initialize(
+        const RtcEngineContext(
+          appId:
+              agoraAppId,
+          channelProfile:
+              ChannelProfileType
+                  .channelProfileCommunication,
+        ),
+      );
+
+      _engine!.registerEventHandler(
+        RtcEngineEventHandler(
+          onJoinChannelSuccess:
+              (
+            RtcConnection connection,
+            int elapsed,
+          ) {
+            if (!mounted) return;
+
+            setState(() {
+              _isEngineReady =
+                  true;
+
+              _pttStatusText =
+                  'Tekan & Tahan untuk Bicara';
+            });
+          },
+        ),
+      );
+
+      await _engine!.enableAudio();
+
+      await _engine!
+          .muteLocalAudioStream(
+        true,
+      );
+
+      await _engine!.joinChannel(
+        token: '',
+        channelId:
+            channelName,
+        uid:
+            0,
+        options:
+            const ChannelMediaOptions(),
+      );
+    } catch (e) {
+      debugPrint(
+        'Agora error: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _pttStatusText =
+            'Tekan & Tahan untuk Bicara';
+      });
+    }
+  }
+
+  // ==========================================================
+  // START TRANSMISSION
+  // ==========================================================
+
+  Future<void>
+      _startTransmission() async {
+    if (_engine != null &&
+        _isEngineReady) {
+      await _engine!
+          .muteLocalAudioStream(
+        false,
+      );
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isTalking =
+          true;
+
+      _pttStatusText =
+          'Transmisi Suara Aktif...';
+    });
+  }
+
+  // ==========================================================
+  // STOP TRANSMISSION
+  // ==========================================================
+
+  Future<void>
+      _stopTransmission() async {
+    if (_engine != null &&
+        _isEngineReady) {
+      await _engine!
+          .muteLocalAudioStream(
+        true,
+      );
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isTalking =
+          false;
+
+      _pttStatusText =
+          'Tekan & Tahan untuk Bicara';
+    });
   }
 }
