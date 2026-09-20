@@ -105,18 +105,24 @@ class _MapScreenState extends State<MapScreen> {
   String _gpsStatus = 'Mencari GPS...';
 
   bool _locationReady = false;
-  
+
   // ==========================================================
-// ROUTING
-// ==========================================================
+  // ROUTING
+  // ==========================================================
 
-List<LatLng> _routePoints = [];
+  List<LatLng> _routePoints = [];
 
-double _routeDistanceKm = 0.0;
+  double _routeDistanceKm = 0.0;
 
-int _routeDurationMinutes = 0;
+  int _routeDurationMinutes = 0;
 
-bool _isLoadingRoute = false;
+  bool _isLoadingRoute = false;
+
+  // Posisi terakhir yang digunakan untuk meminta routing.
+  LatLng? _lastRoutePosition;
+
+  // Routing ulang setiap kurang lebih 50 meter.
+  static const double _rerouteDistanceMeters = 50.0;
 
   // ==========================================================
   // TOURING
@@ -188,10 +194,8 @@ bool _isLoadingRoute = false;
   void initState() {
     super.initState();
 
-    // Jalankan GPS terlebih dahulu.
     _initializeGPS();
 
-    // Agora
     if (!kIsWeb) {
       _initAgoraPTT();
     } else {
@@ -230,8 +234,7 @@ bool _isLoadingRoute = false;
       if (!serviceEnabled) {
         if (mounted) {
           setState(() {
-            _gpsStatus =
-                'GPS Tidak Aktif';
+            _gpsStatus = 'GPS Tidak Aktif';
           });
         }
 
@@ -391,11 +394,15 @@ bool _isLoadingRoute = false;
 
       if (!mounted) return;
 
+      final LatLng newPosition =
+          LatLng(
+        position.latitude,
+        position.longitude,
+      );
+
       setState(() {
-        _currentPosition = LatLng(
-          position.latitude,
-          position.longitude,
-        );
+        _currentPosition =
+            newPosition;
 
         _gpsStatus =
             'GPS Aktif';
@@ -404,157 +411,15 @@ bool _isLoadingRoute = false;
 
         _calculateDistanceAndEta();
       });
-      
-      // ==========================================================
-// AMBIL RUTE DARI OSRM
-// ==========================================================
 
-Future<void> _getRoadRoute() async {
-  if (_currentPosition == null) {
-    return;
-  }
-
-  if (!mounted) return;
-
-  setState(() {
-    _isLoadingRoute = true;
-  });
-
-  try {
-    final start = _currentPosition!;
-    final end = _destinasi;
-
-    final url = Uri.parse(
-      'https://router.project-osrm.org/route/v1/driving/'
-      '${start.longitude},${start.latitude};'
-      '${end.longitude},${end.latitude}'
-      '?overview=full&geometries=geojson',
-    );
-
-    debugPrint(
-      'Meminta rute OSRM...',
-    );
-
-    final response = await http
-        .get(url)
-        .timeout(
-          const Duration(
-            seconds: 15,
-          ),
-        );
-
-    if (response.statusCode != 200) {
-      throw Exception(
-        'HTTP ${response.statusCode}',
-      );
-    }
-
-    final data =
-        jsonDecode(response.body);
-
-    if (data['code'] != 'Ok') {
-      throw Exception(
-        'OSRM: ${data['code']}',
-      );
-    }
-
-    final route =
-        data['routes'][0];
-
-    final geometry =
-        route['geometry'];
-
-    final coordinates =
-        geometry['coordinates'];
-
-    final List<LatLng> newRoute =
-        coordinates.map<LatLng>(
-      (coordinate) {
-        return LatLng(
-          (coordinate[1] as num)
-              .toDouble(),
-          (coordinate[0] as num)
-              .toDouble(),
-        );
-      },
-    ).toList();
-
-    final double distanceMeters =
-        (route['distance'] as num)
-            .toDouble();
-
-    final double durationSeconds =
-        (route['duration'] as num)
-            .toDouble();
-
-    if (!mounted) return;
-
-    setState(() {
-      _routePoints =
-          newRoute;
-
-      _routeDistanceKm =
-          distanceMeters / 1000;
-
-      _routeDurationMinutes =
-          (durationSeconds / 60)
-              .round();
-
-      _isLoadingRoute = false;
-
-      // Pakai hasil routing untuk
-      // tampilan jarak dan ETA.
-      _distanceInKm =
-          _routeDistanceKm;
-
-      _estimatedMinutes =
-          _routeDurationMinutes;
-    });
-
-    debugPrint(
-      'RUTE BERHASIL',
-    );
-
-    debugPrint(
-      'Jarak jalan: '
-      '${_routeDistanceKm.toStringAsFixed(2)} km',
-    );
-
-    debugPrint(
-      'Durasi: '
-      '$_routeDurationMinutes menit',
-    );
-
-    debugPrint(
-      'Jumlah titik rute: '
-      '${_routePoints.length}',
-    );
-  } catch (e) {
-    debugPrint(
-      'ERROR ROUTING: $e',
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoadingRoute = false;
-      _routePoints = [];
-    });
-
-    _showMessage(
-      'Gagal mendapatkan rute jalan',
-    );
-  }
-}
-
-      // Pindahkan peta ke posisi HP
+      // Pindahkan peta ke posisi HP.
       _mapController.move(
-        _currentPosition!,
+        newPosition,
         15.0,
       );
-      
+
+      // Ambil rute jalan pertama.
       await _getRoadRoute();
-      
     } catch (e) {
       debugPrint(
         'ERROR GET CURRENT LOCATION: $e',
@@ -565,12 +430,229 @@ Future<void> _getRoadRoute() async {
       setState(() {
         _gpsStatus =
             'Gagal mendapatkan GPS';
+
         _locationReady = false;
       });
 
       _showMessage(
         'GPS belum mendapatkan posisi',
       );
+    }
+  }
+
+  // ==========================================================
+  // GET ROAD ROUTE
+  // ==========================================================
+
+  Future<void> _getRoadRoute() async {
+    if (_currentPosition == null) {
+      return;
+    }
+
+    if (_isLoadingRoute) {
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingRoute = true;
+    });
+
+    try {
+      final LatLng start =
+          _currentPosition!;
+
+      final LatLng end =
+          _destinasi;
+
+      final Uri url = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${start.longitude},${start.latitude};'
+        '${end.longitude},${end.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+
+      debugPrint(
+        '================================',
+      );
+
+      debugPrint(
+        'MEMINTA RUTE OSRM',
+      );
+
+      debugPrint(
+        'Start: ${start.latitude}, ${start.longitude}',
+      );
+
+      debugPrint(
+        'End: ${end.latitude}, ${end.longitude}',
+      );
+
+      debugPrint(
+        '================================',
+      );
+
+      final http.Response response =
+          await http
+              .get(url)
+              .timeout(
+                const Duration(
+                  seconds: 15,
+                ),
+              );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'HTTP ${response.statusCode}',
+        );
+      }
+
+      final dynamic data =
+          jsonDecode(response.body);
+
+      if (data['code'] != 'Ok') {
+        throw Exception(
+          'OSRM: ${data['code']}',
+        );
+      }
+
+      final List routes =
+          data['routes'];
+
+      if (routes.isEmpty) {
+        throw Exception(
+          'Rute tidak ditemukan',
+        );
+      }
+
+      final dynamic route =
+          routes[0];
+
+      final dynamic geometry =
+          route['geometry'];
+
+      final List coordinates =
+          geometry['coordinates'];
+
+      final List<LatLng> newRoute =
+          coordinates
+              .map<LatLng>(
+                (dynamic coordinate) {
+                  return LatLng(
+                    (coordinate[1] as num)
+                        .toDouble(),
+                    (coordinate[0] as num)
+                        .toDouble(),
+                  );
+                },
+              )
+              .toList();
+
+      final double distanceMeters =
+          (route['distance'] as num)
+              .toDouble();
+
+      final double durationSeconds =
+          (route['duration'] as num)
+              .toDouble();
+
+      if (!mounted) return;
+
+      setState(() {
+        _routePoints =
+            newRoute;
+
+        _routeDistanceKm =
+            distanceMeters / 1000;
+
+        _routeDurationMinutes =
+            (durationSeconds / 60)
+                .round();
+
+        _distanceInKm =
+            _routeDistanceKm;
+
+        _estimatedMinutes =
+            _routeDurationMinutes;
+
+        _isLoadingRoute = false;
+
+        _lastRoutePosition =
+            start;
+      });
+
+      debugPrint(
+        'RUTE BERHASIL',
+      );
+
+      debugPrint(
+        'Jarak jalan: '
+        '${_routeDistanceKm.toStringAsFixed(2)} km',
+      );
+
+      debugPrint(
+        'Durasi: '
+        '$_routeDurationMinutes menit',
+      );
+
+      debugPrint(
+        'Jumlah titik rute: '
+        '${_routePoints.length}',
+      );
+    } catch (e) {
+      debugPrint(
+        'ERROR ROUTING: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingRoute = false;
+      });
+
+      _showMessage(
+        'Gagal mendapatkan rute jalan',
+      );
+    }
+  }
+
+  // ==========================================================
+  // CEK APAKAH PERLU ROUTING ULANG
+  // ==========================================================
+
+  void _checkAndUpdateRoute(
+    LatLng newPosition,
+  ) {
+    if (!_isTouring) {
+      return;
+    }
+
+    if (_isLoadingRoute) {
+      return;
+    }
+
+    if (_lastRoutePosition == null) {
+      _getRoadRoute();
+      return;
+    }
+
+    final double distance =
+        Geolocator.distanceBetween(
+      _lastRoutePosition!.latitude,
+      _lastRoutePosition!.longitude,
+      newPosition.latitude,
+      newPosition.longitude,
+    );
+
+    debugPrint(
+      'Jarak dari routing terakhir: '
+      '${distance.toStringAsFixed(1)} m',
+    );
+
+    if (distance >=
+        _rerouteDistanceMeters) {
+      _getRoadRoute();
     }
   }
 
@@ -583,7 +665,8 @@ Future<void> _getRoadRoute() async {
 
     const LocationSettings locationSettings =
         LocationSettings(
-      accuracy: LocationAccuracy.high,
+      accuracy:
+          LocationAccuracy.high,
       distanceFilter: 5,
     );
 
@@ -605,7 +688,8 @@ Future<void> _getRoadRoute() async {
 
         if (!mounted) return;
 
-        final newPosition = LatLng(
+        final LatLng newPosition =
+            LatLng(
           position.latitude,
           position.longitude,
         );
@@ -622,22 +706,17 @@ Future<void> _getRoadRoute() async {
           _calculateDistanceAndEta();
         });
 
-        // Hanya mengikuti posisi otomatis
-        // ketika Touring sedang aktif.
+        // Peta mengikuti kendaraan
+        // hanya saat touring.
         if (_isTouring) {
           _mapController.move(
             newPosition,
             16.0,
           );
-        if (_isTouring) {
-  _mapController.move(
-    newPosition,
-    16.0,
-  );
 
-  // Update rute berdasarkan posisi terbaru.
-  _getRoadRoute();
-}
+          _checkAndUpdateRoute(
+            newPosition,
+          );
         }
       },
       onError: (error) {
@@ -650,6 +729,7 @@ Future<void> _getRoadRoute() async {
         setState(() {
           _gpsStatus =
               'GPS Error';
+
           _locationReady = false;
         });
       },
@@ -660,7 +740,7 @@ Future<void> _getRoadRoute() async {
   // MULAI TOURING
   // ==========================================================
 
-  void _startTouring() {
+  Future<void> _startTouring() async {
     if (!_locationReady ||
         _currentPosition == null) {
       _showMessage(
@@ -675,9 +755,13 @@ Future<void> _getRoadRoute() async {
 
       _touringStartTime =
           DateTime.now();
-
-      _calculateDistanceAndEta();
     });
+
+    // Ambil rute dari posisi GPS
+    // saat touring dimulai.
+    await _getRoadRoute();
+
+    if (!mounted) return;
 
     _mapController.move(
       _currentPosition!,
@@ -709,6 +793,19 @@ Future<void> _getRoadRoute() async {
 
   void _calculateDistanceAndEta() {
     if (_currentPosition == null) {
+      return;
+    }
+
+    // Kalau sudah ada hasil routing,
+    // jangan langsung menimpa dengan
+    // jarak garis lurus.
+    if (_routePoints.isNotEmpty) {
+      _distanceInKm =
+          _routeDistanceKm;
+
+      _estimatedMinutes =
+          _routeDurationMinutes;
+
       return;
     }
 
@@ -815,10 +912,15 @@ Future<void> _getRoadRoute() async {
       return;
     }
 
+    // --------------------------------------------------------
+    // TITIK KUMPUL
+    // --------------------------------------------------------
+
     if (_mapPickingMode ==
         'kumpul') {
       setState(() {
         _titikKumpul = point;
+
         _mapPickingMode = null;
       });
 
@@ -830,12 +932,25 @@ Future<void> _getRoadRoute() async {
       _showMessage(
         'Titik kumpul berhasil dipilih',
       );
-    } else if (_mapPickingMode ==
+    }
+
+    // --------------------------------------------------------
+    // DESTINASI
+    // --------------------------------------------------------
+
+    else if (_mapPickingMode ==
         'destinasi') {
       setState(() {
         _destinasi = point;
 
         _mapPickingMode = null;
+
+        // Hapus rute lama.
+        _routePoints = [];
+
+        _routeDistanceKm = 0.0;
+
+        _routeDurationMinutes = 0;
 
         _calculateDistanceAndEta();
       });
@@ -845,7 +960,11 @@ Future<void> _getRoadRoute() async {
         14.0,
       );
 
-      _getRoadRoute();
+      // Kalau GPS sudah tersedia,
+      // langsung hitung rute baru.
+      if (_currentPosition != null) {
+        _getRoadRoute();
+      }
 
       _showMessage(
         'Destinasi berhasil dipilih',
@@ -884,15 +1003,20 @@ Future<void> _getRoadRoute() async {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
+          title:
+              const Text(
             'Atur Rute Touring',
           ),
-          content: Column(
+          content:
+              Column(
             mainAxisSize:
                 MainAxisSize.min,
             children: [
+
+              // TITIK KUMPUL
               Card(
-                child: ListTile(
+                child:
+                    ListTile(
                   leading:
                       const Icon(
                     Icons.location_on,
@@ -926,11 +1050,14 @@ Future<void> _getRoadRoute() async {
               ),
 
               const SizedBox(
-                height: 10,
+                height:
+                    10,
               ),
 
+              // DESTINASI
               Card(
-                child: ListTile(
+                child:
+                    ListTile(
                   leading:
                       const Icon(
                     Icons.flag,
@@ -1011,6 +1138,7 @@ Future<void> _getRoadRoute() async {
                   mainAxisSize:
                       MainAxisSize.min,
                   children: [
+
                     TextField(
                       controller:
                           nameController,
@@ -1028,7 +1156,8 @@ Future<void> _getRoadRoute() async {
                     ),
 
                     const SizedBox(
-                      height: 18,
+                      height:
+                          18,
                     ),
 
                     DropdownButtonFormField<
@@ -1047,6 +1176,7 @@ Future<void> _getRoadRoute() async {
                             OutlineInputBorder(),
                       ),
                       items: const [
+
                         DropdownMenuItem(
                           value:
                               'Motor',
@@ -1057,7 +1187,8 @@ Future<void> _getRoadRoute() async {
                                 Icons.two_wheeler,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Motor',
@@ -1065,6 +1196,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'Scooter',
@@ -1075,7 +1207,8 @@ Future<void> _getRoadRoute() async {
                                 Icons.electric_scooter,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Scooter',
@@ -1083,6 +1216,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'Mobil',
@@ -1093,7 +1227,8 @@ Future<void> _getRoadRoute() async {
                                 Icons.directions_car,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Mobil',
@@ -1101,6 +1236,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'SUV',
@@ -1108,10 +1244,12 @@ Future<void> _getRoadRoute() async {
                               Row(
                             children: [
                               Icon(
-                                Icons.directions_car_filled,
+                                Icons
+                                    .directions_car_filled,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'SUV',
@@ -1119,6 +1257,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'Truck',
@@ -1129,7 +1268,8 @@ Future<void> _getRoadRoute() async {
                                 Icons.local_shipping,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Truck',
@@ -1137,6 +1277,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'Van',
@@ -1144,10 +1285,12 @@ Future<void> _getRoadRoute() async {
                               Row(
                             children: [
                               Icon(
-                                Icons.airport_shuttle,
+                                Icons
+                                    .airport_shuttle,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Van',
@@ -1155,6 +1298,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'Taxi',
@@ -1165,7 +1309,8 @@ Future<void> _getRoadRoute() async {
                                 Icons.local_taxi,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Taxi',
@@ -1173,6 +1318,7 @@ Future<void> _getRoadRoute() async {
                             ],
                           ),
                         ),
+
                         DropdownMenuItem(
                           value:
                               'Sepeda',
@@ -1183,7 +1329,8 @@ Future<void> _getRoadRoute() async {
                                 Icons.pedal_bike,
                               ),
                               SizedBox(
-                                width: 10,
+                                width:
+                                    10,
                               ),
                               Text(
                                 'Sepeda',
@@ -1207,6 +1354,7 @@ Future<void> _getRoadRoute() async {
                 ),
               ),
               actions: [
+
                 TextButton(
                   onPressed: () =>
                       Navigator.pop(
@@ -1217,6 +1365,7 @@ Future<void> _getRoadRoute() async {
                     'Batal',
                   ),
                 ),
+
                 ElevatedButton.icon(
                   icon:
                       const Icon(
@@ -1227,37 +1376,46 @@ Future<void> _getRoadRoute() async {
                     'Simpan',
                   ),
                   onPressed: () {
+
                     if (nameController
                         .text
                         .trim()
                         .isNotEmpty) {
+
                       setState(() {
                         _groupMembers
                             .add(
                           Member(
-                            id: DateTime
-                                .now()
-                                .millisecondsSinceEpoch
-                                .toString(),
+                            id:
+                                DateTime
+                                    .now()
+                                    .millisecondsSinceEpoch
+                                    .toString(),
+
                             name:
                                 nameController
                                     .text
                                     .trim(),
+
                             location:
                                 LatLng(
                               (_currentPosition
                                           ?.latitude ??
                                       -6.175392) +
                                   0.002,
+
                               (_currentPosition
                                           ?.longitude ??
                                       106.827153) +
                                   0.002,
                             ),
+
                             status:
                                 'Riding',
+
                             color:
                                 Colors.green,
+
                             vehicleType:
                                 selectedVehicle,
                           ),
@@ -1284,13 +1442,16 @@ Future<void> _getRoadRoute() async {
 
   void _showMemberList() {
     showModalBottomSheet(
-      context: context,
+      context:
+          context,
       shape:
           const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(
           top:
-              Radius.circular(20),
+              Radius.circular(
+            20,
+          ),
         ),
       ),
       builder:
@@ -1305,23 +1466,25 @@ Future<void> _getRoadRoute() async {
             mainAxisSize:
                 MainAxisSize.min,
             crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
+                CrossAxisAlignment.start,
             children: [
+
               Row(
                 mainAxisAlignment:
-                    MainAxisAlignment
-                        .spaceBetween,
+                    MainAxisAlignment.spaceBetween,
                 children: [
+
                   Text(
                     'Daftar Anggota (${_groupMembers.length + 1})',
                     style:
                         const TextStyle(
-                      fontSize: 18,
+                      fontSize:
+                          18,
                       fontWeight:
                           FontWeight.bold,
                     ),
                   ),
+
                   IconButton(
                     icon:
                         const Icon(
@@ -1515,15 +1678,14 @@ Future<void> _getRoadRoute() async {
               setState(() {
                 _isMotorMode =
                     !_isMotorMode;
-
-                _calculateDistanceAndEta();
               });
+
+              _calculateDistanceAndEta();
             },
           ),
 
           // LAYER
-          PopupMenuButton<
-              String>(
+          PopupMenuButton<String>(
             icon:
                 const Icon(
               Icons.layers,
@@ -1550,6 +1712,7 @@ Future<void> _getRoadRoute() async {
                     child:
                         Row(
                       children: [
+
                         Icon(
                           key ==
                                   'Dark Mode'
@@ -1563,10 +1726,12 @@ Future<void> _getRoadRoute() async {
                           size:
                               20,
                         ),
+
                         const SizedBox(
                           width:
                               10,
                         ),
+
                         Text(
                           key,
                         ),
@@ -1616,21 +1781,26 @@ Future<void> _getRoadRoute() async {
               ),
 
               // =================================================
-              // GARIS RUTE SEMENTARA
+              // ROAD ROUTE
               // =================================================
 
               PolylineLayer(
-  polylines: [
-    if (_routePoints.isNotEmpty)
-      Polyline(
-        points: _routePoints,
-        strokeWidth: 5.0,
-        color: _isMotorMode
-            ? Colors.blueAccent
-            : Colors.orangeAccent,
-      ),
-  ],
-),
+                polylines: [
+
+                  if (_routePoints.isNotEmpty)
+                    Polyline(
+                      points:
+                          _routePoints,
+                      strokeWidth:
+                          5.0,
+                      color:
+                          _isMotorMode
+                              ? Colors.blueAccent
+                              : Colors.orangeAccent,
+                    ),
+                ],
+              ),
+
               // =================================================
               // MARKER
               // =================================================
@@ -1763,7 +1933,9 @@ Future<void> _getRoadRoute() async {
                               child:
                                   Text(
                                 member.name
-                                    .split(' ')
+                                    .split(
+                                      ' ',
+                                    )
                                     .first,
                                 style:
                                     const TextStyle(
@@ -1793,6 +1965,64 @@ Future<void> _getRoadRoute() async {
               ),
             ],
           ),
+
+          // ==================================================
+          // LOADING ROUTE
+          // ==================================================
+
+          if (_isLoadingRoute)
+            Positioned(
+              top:
+                  100,
+              right:
+                  16,
+              child:
+                  Card(
+                child:
+                    Padding(
+                  padding:
+                      const EdgeInsets.symmetric(
+                    horizontal:
+                        12,
+                    vertical:
+                        8,
+                  ),
+                  child:
+                      Row(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    children: [
+
+                      const SizedBox(
+                        width:
+                            16,
+                        height:
+                            16,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth:
+                              2,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        width:
+                            8,
+                      ),
+
+                      const Text(
+                        'Menghitung rute...',
+                        style:
+                            TextStyle(
+                          fontSize:
+                              12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // ==================================================
           // INSTRUKSI PILIH TITIK
@@ -1825,15 +2055,18 @@ Future<void> _getRoadRoute() async {
                   child:
                       Row(
                     children: [
+
                       const Icon(
                         Icons.touch_app,
                         color:
                             Colors.white,
                       ),
+
                       const SizedBox(
                         width:
                             10,
                       ),
+
                       Expanded(
                         child:
                             Text(
@@ -1850,6 +2083,7 @@ Future<void> _getRoadRoute() async {
                           ),
                         ),
                       ),
+
                       IconButton(
                         icon:
                             const Icon(
@@ -1911,9 +2145,9 @@ Future<void> _getRoadRoute() async {
                       // GPS STATUS
                       Row(
                         mainAxisAlignment:
-                            MainAxisAlignment
-                                .center,
+                            MainAxisAlignment.center,
                         children: [
+
                           Icon(
                             _locationReady
                                 ? Icons.gps_fixed
@@ -1925,10 +2159,12 @@ Future<void> _getRoadRoute() async {
                                     ? Colors.green
                                     : Colors.orange,
                           ),
+
                           const SizedBox(
                             width:
                                 6,
                           ),
+
                           Text(
                             _gpsStatus,
                             style:
@@ -1953,13 +2189,13 @@ Future<void> _getRoadRoute() async {
 
                       Row(
                         mainAxisAlignment:
-                            MainAxisAlignment
-                                .spaceAround,
+                            MainAxisAlignment.spaceAround,
                         children: [
 
                           // JARAK
                           Column(
                             children: [
+
                               const Text(
                                 'Jarak',
                                 style:
@@ -1970,6 +2206,7 @@ Future<void> _getRoadRoute() async {
                                       Colors.grey,
                                 ),
                               ),
+
                               Text(
                                 _locationReady
                                     ? '${_distanceInKm.toStringAsFixed(1)} km'
@@ -1997,6 +2234,7 @@ Future<void> _getRoadRoute() async {
                           // ETA
                           Column(
                             children: [
+
                               const Text(
                                 'Est. Waktu',
                                 style:
@@ -2007,6 +2245,7 @@ Future<void> _getRoadRoute() async {
                                       Colors.grey,
                                 ),
                               ),
+
                               Text(
                                 _locationReady
                                     ? '$_estimatedMinutes mnt'
@@ -2036,6 +2275,7 @@ Future<void> _getRoadRoute() async {
                           // STATUS TOURING
                           Column(
                             children: [
+
                               const Text(
                                 'Status',
                                 style:
@@ -2046,6 +2286,7 @@ Future<void> _getRoadRoute() async {
                                       Colors.grey,
                                 ),
                               ),
+
                               Text(
                                 _isTouring
                                     ? 'AKTIF'
@@ -2258,11 +2499,11 @@ Future<void> _getRoadRoute() async {
                       shape:
                           BoxShape.circle,
                       boxShadow: [
+
                         BoxShadow(
                           color:
                               _isTalking
-                                  ? Colors.red
-                                      .withOpacity(
+                                  ? Colors.red.withOpacity(
                                       0.6,
                                     )
                                   : Colors.black26,
@@ -2349,7 +2590,9 @@ Future<void> _getRoadRoute() async {
   // ==========================================================
 
   Future<void> _initAgoraPTT() async {
-    await [Permission.microphone].request();
+    await [
+      Permission.microphone,
+    ].request();
 
     try {
       _engine =
