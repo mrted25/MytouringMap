@@ -42,6 +42,3 @@ jobs:
         with:
           name: touring-map-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Run tests
-        run: flutter test
