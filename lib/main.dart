@@ -2268,7 +2268,7 @@ class _MapScreenState extends State<MapScreen> {
 
                                   child:
                                       Image.asset(
-                                    'assets/scooter_top.png',
+                                    'assets/metic.png',
 
                                     width:
                                         70,
