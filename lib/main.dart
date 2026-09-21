@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 const String agoraAppId = "398d30b96cae43aeac064c7a0fa9add8";
 const String channelName = "touring_room_1";
