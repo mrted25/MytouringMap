@@ -32,12 +32,10 @@ jobs:
 
       - name: Build APK
         run: |
-             cd android
-             ./gradlew --stop || true
-              cd ..
-              flutter clean
-              flutter pub get
-              flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+         flutter clean
+         flutter pub get
+         flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+         
       - name: Verify APK signature
         run: |
               APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | head -1)
