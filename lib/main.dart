@@ -1,20 +1,29 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
+
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-const String agoraAppId = "398d30b96cae43aeac064c7a0fa9add8";
-const String channelName = "touring_room_1";
+import 'firebase_options.dart';
+import 'services/touring_service.dart';
+
+const String agoraAppId =
+    "398d30b96cae43aeac064c7a0fa9add8";
+
+const String channelName =
+    "touring_room_1";
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +40,7 @@ Future<void> main() async {
 }
 
 // ============================================================
-// DATA ANGGOTA
+// MEMBER
 // ============================================================
 
 class Member {
@@ -85,20 +94,27 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final MapController _mapController = MapController();
+  final MapController _mapController =
+      MapController();
 
   // ==========================================================
   // TITIK KUMPUL & DESTINASI
   // ==========================================================
 
   LatLng _titikKumpul =
-      const LatLng(-6.175392, 106.827153);
+      const LatLng(
+    -6.175392,
+    106.827153,
+  );
 
   LatLng _destinasi =
-      const LatLng(-6.229728, 106.846548);
+      const LatLng(
+    -6.229728,
+    106.846548,
+  );
 
   // ==========================================================
-  // MODE PILIH TITIK
+  // MAP PICKING
   // ==========================================================
 
   String? _mapPickingMode;
@@ -109,15 +125,29 @@ class _MapScreenState extends State<MapScreen> {
 
   LatLng? _currentPosition;
 
-  StreamSubscription<Position>? _positionStream;
+  StreamSubscription<Position>?
+      _positionStream;
 
   double _distanceInKm = 0.0;
 
   int _estimatedMinutes = 0;
 
-  String _gpsStatus = 'Mencari GPS...';
+  String _gpsStatus =
+      'Mencari GPS...';
 
   bool _locationReady = false;
+
+  // ==========================================================
+  // GPS HEADING
+  //
+  // Nilai dalam derajat:
+  // 0   = Utara
+  // 90  = Timur
+  // 180 = Selatan
+  // 270 = Barat
+  // ==========================================================
+
+  double _heading = 0.0;
 
   // ==========================================================
   // ROUTING
@@ -131,11 +161,10 @@ class _MapScreenState extends State<MapScreen> {
 
   bool _isLoadingRoute = false;
 
-  // Posisi terakhir yang digunakan untuk meminta routing.
   LatLng? _lastRoutePosition;
 
-  // Routing ulang setiap kurang lebih 50 meter.
-  static const double _rerouteDistanceMeters = 50.0;
+  static const double
+      _rerouteDistanceMeters = 50.0;
 
   // ==========================================================
   // TOURING
@@ -146,18 +175,27 @@ class _MapScreenState extends State<MapScreen> {
   DateTime? _touringStartTime;
 
   // ==========================================================
-  // MODE KENDARAAN
+  // FIREBASE TOURING
+  // ==========================================================
+
+  String? _activeTouringCode;
+
+  String? _activeTouringName;
+
+  // ==========================================================
+  // VEHICLE
   // ==========================================================
 
   bool _isMotorMode = true;
 
   // ==========================================================
-  // MODE PETA
+  // MAP TILE
   // ==========================================================
 
   String _selectedTile = 'Standard';
 
-  final Map<String, String> _tileProviders = {
+  final Map<String, String>
+      _tileProviders = {
     'Standard':
         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
 
@@ -169,7 +207,7 @@ class _MapScreenState extends State<MapScreen> {
   };
 
   // ==========================================================
-  // ANGGOTA ROMBONGAN
+  // GROUP MEMBER SEMENTARA
   // ==========================================================
 
   final List<Member> _groupMembers = [
@@ -187,7 +225,7 @@ class _MapScreenState extends State<MapScreen> {
   ];
 
   // ==========================================================
-  // AGORA PTT
+  // AGORA
   // ==========================================================
 
   RtcEngine? _engine;
@@ -222,32 +260,23 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   Future<void> _initializeGPS() async {
-    debugPrint('================================');
-    debugPrint('MULAI INISIALISASI GPS');
-    debugPrint('================================');
-
     if (mounted) {
       setState(() {
-        _gpsStatus = 'Memeriksa GPS...';
+        _gpsStatus =
+            'Memeriksa GPS...';
       });
     }
 
     try {
-      // --------------------------------------------------------
-      // CEK GPS SERVICE
-      // --------------------------------------------------------
-
-      bool serviceEnabled =
-          await Geolocator.isLocationServiceEnabled();
-
-      debugPrint(
-        'Location service: $serviceEnabled',
-      );
+      final bool serviceEnabled =
+          await Geolocator
+              .isLocationServiceEnabled();
 
       if (!serviceEnabled) {
         if (mounted) {
           setState(() {
-            _gpsStatus = 'GPS Tidak Aktif';
+            _gpsStatus =
+                'GPS Tidak Aktif';
           });
         }
 
@@ -258,27 +287,11 @@ class _MapScreenState extends State<MapScreen> {
         return;
       }
 
-      // --------------------------------------------------------
-      // CEK PERMISSION
-      // --------------------------------------------------------
-
       LocationPermission permission =
           await Geolocator.checkPermission();
 
-      debugPrint(
-        'Permission awal: $permission',
-      );
-
-      // --------------------------------------------------------
-      // REQUEST PERMISSION
-      // --------------------------------------------------------
-
       if (permission ==
           LocationPermission.denied) {
-        debugPrint(
-          'Meminta izin lokasi...',
-        );
-
         if (mounted) {
           setState(() {
             _gpsStatus =
@@ -288,15 +301,7 @@ class _MapScreenState extends State<MapScreen> {
 
         permission =
             await Geolocator.requestPermission();
-
-        debugPrint(
-          'Permission setelah request: $permission',
-        );
       }
-
-      // --------------------------------------------------------
-      // DENIED
-      // --------------------------------------------------------
 
       if (permission ==
           LocationPermission.denied) {
@@ -314,10 +319,6 @@ class _MapScreenState extends State<MapScreen> {
         return;
       }
 
-      // --------------------------------------------------------
-      // DENIED FOREVER
-      // --------------------------------------------------------
-
       if (permission ==
           LocationPermission.deniedForever) {
         if (mounted) {
@@ -333,14 +334,6 @@ class _MapScreenState extends State<MapScreen> {
 
         return;
       }
-
-      // --------------------------------------------------------
-      // PERMISSION OK
-      // --------------------------------------------------------
-
-      debugPrint(
-        'IZIN GPS OK',
-      );
 
       if (mounted) {
         setState(() {
@@ -378,11 +371,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      debugPrint(
-        'Mencari posisi GPS...',
-      );
-
-      Position position =
+      final Position position =
           await Geolocator.getCurrentPosition(
         desiredAccuracy:
             LocationAccuracy.high,
@@ -391,19 +380,6 @@ class _MapScreenState extends State<MapScreen> {
           seconds: 20,
         ),
       );
-
-      debugPrint('================================');
-      debugPrint('GPS BERHASIL');
-      debugPrint(
-        'Latitude : ${position.latitude}',
-      );
-      debugPrint(
-        'Longitude: ${position.longitude}',
-      );
-      debugPrint(
-        'Accuracy : ${position.accuracy}',
-      );
-      debugPrint('================================');
 
       if (!mounted) return;
 
@@ -422,16 +398,22 @@ class _MapScreenState extends State<MapScreen> {
 
         _locationReady = true;
 
+        // Heading hanya digunakan kalau
+        // kendaraan sedang bergerak.
+        if (position.speed > 1.0 &&
+            position.heading >= 0) {
+          _heading =
+              position.heading;
+        }
+
         _calculateDistanceAndEta();
       });
 
-      // Pindahkan peta ke posisi HP.
       _mapController.move(
         newPosition,
         15.0,
       );
 
-      // Ambil rute jalan pertama.
       await _getRoadRoute();
     } catch (e) {
       debugPrint(
@@ -454,7 +436,86 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // GET ROAD ROUTE
+  // GPS REALTIME
+  // ==========================================================
+
+  void _startLocationUpdates() {
+    _positionStream?.cancel();
+
+    const LocationSettings
+        locationSettings =
+        LocationSettings(
+      accuracy:
+          LocationAccuracy.high,
+      distanceFilter: 5,
+    );
+
+    _positionStream =
+        Geolocator.getPositionStream(
+      locationSettings:
+          locationSettings,
+    ).listen(
+      (Position position) {
+        if (!mounted) return;
+
+        final LatLng newPosition =
+            LatLng(
+          position.latitude,
+          position.longitude,
+        );
+
+        setState(() {
+          _currentPosition =
+              newPosition;
+
+          _gpsStatus =
+              'GPS Aktif';
+
+          _locationReady = true;
+
+          // Jangan ubah heading ketika kendaraan
+          // sedang hampir berhenti karena GPS
+          // biasanya menghasilkan heading yang
+          // tidak stabil.
+          if (position.speed > 1.0 &&
+              position.heading >= 0) {
+            _heading =
+                position.heading;
+          }
+
+          _calculateDistanceAndEta();
+        });
+
+        if (_isTouring) {
+          _mapController.move(
+            newPosition,
+            16.0,
+          );
+
+          _checkAndUpdateRoute(
+            newPosition,
+          );
+        }
+      },
+      onError: (error) {
+        debugPrint(
+          'GPS STREAM ERROR: $error',
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _gpsStatus =
+              'GPS Error';
+
+          _locationReady = false;
+        });
+      },
+    );
+  }
+
+  // ==========================================================
+  // ROAD ROUTING OSRM
   // ==========================================================
 
   Future<void> _getRoadRoute() async {
@@ -484,26 +545,6 @@ class _MapScreenState extends State<MapScreen> {
         '${start.longitude},${start.latitude};'
         '${end.longitude},${end.latitude}'
         '?overview=full&geometries=geojson',
-      );
-
-      debugPrint(
-        '================================',
-      );
-
-      debugPrint(
-        'MEMINTA RUTE OSRM',
-      );
-
-      debugPrint(
-        'Start: ${start.latitude}, ${start.longitude}',
-      );
-
-      debugPrint(
-        'End: ${end.latitude}, ${end.longitude}',
-      );
-
-      debugPrint(
-        '================================',
       );
 
       final http.Response response =
@@ -594,25 +635,6 @@ class _MapScreenState extends State<MapScreen> {
         _lastRoutePosition =
             start;
       });
-
-      debugPrint(
-        'RUTE BERHASIL',
-      );
-
-      debugPrint(
-        'Jarak jalan: '
-        '${_routeDistanceKm.toStringAsFixed(2)} km',
-      );
-
-      debugPrint(
-        'Durasi: '
-        '$_routeDurationMinutes menit',
-      );
-
-      debugPrint(
-        'Jumlah titik rute: '
-        '${_routePoints.length}',
-      );
     } catch (e) {
       debugPrint(
         'ERROR ROUTING: $e',
@@ -631,7 +653,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // CEK APAKAH PERLU ROUTING ULANG
+  // CHECK REROUTE
   // ==========================================================
 
   void _checkAndUpdateRoute(
@@ -658,11 +680,6 @@ class _MapScreenState extends State<MapScreen> {
       newPosition.longitude,
     );
 
-    debugPrint(
-      'Jarak dari routing terakhir: '
-      '${distance.toStringAsFixed(1)} m',
-    );
-
     if (distance >=
         _rerouteDistanceMeters) {
       _getRoadRoute();
@@ -670,87 +687,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // GPS REALTIME
-  // ==========================================================
-
-  void _startLocationUpdates() {
-    _positionStream?.cancel();
-
-    const LocationSettings locationSettings =
-        LocationSettings(
-      accuracy:
-          LocationAccuracy.high,
-      distanceFilter: 5,
-    );
-
-    debugPrint(
-      'GPS realtime dimulai',
-    );
-
-    _positionStream =
-        Geolocator.getPositionStream(
-      locationSettings:
-          locationSettings,
-    ).listen(
-      (Position position) {
-        debugPrint(
-          'GPS UPDATE: '
-          '${position.latitude}, '
-          '${position.longitude}',
-        );
-
-        if (!mounted) return;
-
-        final LatLng newPosition =
-            LatLng(
-          position.latitude,
-          position.longitude,
-        );
-
-        setState(() {
-          _currentPosition =
-              newPosition;
-
-          _gpsStatus =
-              'GPS Aktif';
-
-          _locationReady = true;
-
-          _calculateDistanceAndEta();
-        });
-
-        // Peta mengikuti kendaraan
-        // hanya saat touring.
-        if (_isTouring) {
-          _mapController.move(
-            newPosition,
-            16.0,
-          );
-
-          _checkAndUpdateRoute(
-            newPosition,
-          );
-        }
-      },
-      onError: (error) {
-        debugPrint(
-          'GPS STREAM ERROR: $error',
-        );
-
-        if (!mounted) return;
-
-        setState(() {
-          _gpsStatus =
-              'GPS Error';
-
-          _locationReady = false;
-        });
-      },
-    );
-  }
-
-  // ==========================================================
-  // MULAI TOURING
+  // START TOURING
   // ==========================================================
 
   Future<void> _startTouring() async {
@@ -770,8 +707,6 @@ class _MapScreenState extends State<MapScreen> {
           DateTime.now();
     });
 
-    // Ambil rute dari posisi GPS
-    // saat touring dimulai.
     await _getRoadRoute();
 
     if (!mounted) return;
@@ -801,7 +736,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // HITUNG JARAK & ETA
+  // DISTANCE & ETA
   // ==========================================================
 
   void _calculateDistanceAndEta() {
@@ -809,9 +744,6 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    // Kalau sudah ada hasil routing,
-    // jangan langsung menimpa dengan
-    // jarak garis lurus.
     if (_routePoints.isNotEmpty) {
       _distanceInKm =
           _routeDistanceKm;
@@ -863,7 +795,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // ICON KENDARAAN
+  // VEHICLE ICON
   // ==========================================================
 
   IconData _getVehicleIcon(
@@ -900,7 +832,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // PILIH TITIK
+  // PICK LOCATION
   // ==========================================================
 
   void _startPickLocation(
@@ -925,15 +857,10 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    // --------------------------------------------------------
-    // TITIK KUMPUL
-    // --------------------------------------------------------
-
     if (_mapPickingMode ==
         'kumpul') {
       setState(() {
         _titikKumpul = point;
-
         _mapPickingMode = null;
       });
 
@@ -945,24 +872,14 @@ class _MapScreenState extends State<MapScreen> {
       _showMessage(
         'Titik kumpul berhasil dipilih',
       );
-    }
-
-    // --------------------------------------------------------
-    // DESTINASI
-    // --------------------------------------------------------
-
-    else if (_mapPickingMode ==
+    } else if (_mapPickingMode ==
         'destinasi') {
       setState(() {
         _destinasi = point;
-
         _mapPickingMode = null;
 
-        // Hapus rute lama.
         _routePoints = [];
-
         _routeDistanceKm = 0.0;
-
         _routeDurationMinutes = 0;
 
         _calculateDistanceAndEta();
@@ -973,8 +890,6 @@ class _MapScreenState extends State<MapScreen> {
         14.0,
       );
 
-      // Kalau GPS sudah tersedia,
-      // langsung hitung rute baru.
       if (_currentPosition != null) {
         _getRoadRoute();
       }
@@ -983,28 +898,6 @@ class _MapScreenState extends State<MapScreen> {
         'Destinasi berhasil dipilih',
       );
     }
-  }
-
-  // ==========================================================
-  // MESSAGE
-  // ==========================================================
-
-  void _showMessage(
-    String message,
-  ) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content:
-            Text(message),
-        duration:
-            const Duration(
-          seconds: 2,
-        ),
-      ),
-    );
   }
 
   // ==========================================================
@@ -1025,8 +918,6 @@ class _MapScreenState extends State<MapScreen> {
             mainAxisSize:
                 MainAxisSize.min,
             children: [
-
-              // TITIK KUMPUL
               Card(
                 child:
                     ListTile(
@@ -1061,13 +952,9 @@ class _MapScreenState extends State<MapScreen> {
                   },
                 ),
               ),
-
               const SizedBox(
-                height:
-                    10,
+                height: 10,
               ),
-
-              // DESTINASI
               Card(
                 child:
                     ListTile(
@@ -1107,12 +994,528 @@ class _MapScreenState extends State<MapScreen> {
           actions: [
             TextButton(
               onPressed: () =>
-                  Navigator.pop(
-                context,
-              ),
+                  Navigator.pop(context),
               child:
                   const Text(
                 'Tutup',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================================
+  // BUAT TOURING
+  // ==========================================================
+
+  void _showCreateTouringDialog() {
+    final TextEditingController
+        nameController =
+        TextEditingController();
+
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible:
+          !isSaving,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder:
+              (context, setDialogState) {
+            return AlertDialog(
+              title:
+                  const Row(
+                children: [
+                  Icon(
+                    Icons.flag_circle,
+                    color:
+                        Colors.blueAccent,
+                  ),
+                  SizedBox(
+                    width: 8,
+                  ),
+                  Text(
+                    'Buat Touring',
+                  ),
+                ],
+              ),
+              content:
+                  SingleChildScrollView(
+                child:
+                    Column(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller:
+                          nameController,
+                      enabled:
+                          !isSaving,
+                      decoration:
+                          const InputDecoration(
+                        labelText:
+                            'Nama Touring',
+                        hintText:
+                            'Contoh: Touring Bandung',
+                        prefixIcon:
+                            Icon(
+                          Icons.tour,
+                        ),
+                        border:
+                            OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 18,
+                    ),
+
+                    const Text(
+                      'Titik Kumpul',
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 4,
+                    ),
+
+                    Container(
+                      width:
+                          double.infinity,
+                      padding:
+                          const EdgeInsets.all(
+                        12,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.red.withOpacity(
+                          0.08,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(
+                          8,
+                        ),
+                      ),
+                      child:
+                          Text(
+                        '${_titikKumpul.latitude.toStringAsFixed(6)}, '
+                        '${_titikKumpul.longitude.toStringAsFixed(6)}',
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 14,
+                    ),
+
+                    const Text(
+                      'Destinasi',
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 4,
+                    ),
+
+                    Container(
+                      width:
+                          double.infinity,
+                      padding:
+                          const EdgeInsets.all(
+                        12,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.green.withOpacity(
+                          0.08,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(
+                          8,
+                        ),
+                      ),
+                      child:
+                          Text(
+                        '${_destinasi.latitude.toStringAsFixed(6)}, '
+                        '${_destinasi.longitude.toStringAsFixed(6)}',
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    const Text(
+                      'Atur titik melalui menu "Atur Rute" '
+                      'untuk memilih langsung dari peta.',
+                      style:
+                          TextStyle(
+                        fontSize: 12,
+                        color:
+                            Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isSaving
+                          ? null
+                          : () {
+                              Navigator.pop(
+                                dialogContext,
+                              );
+                            },
+                  child:
+                      const Text(
+                    'Batal',
+                  ),
+                ),
+
+                ElevatedButton.icon(
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color:
+                                Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.cloud_upload,
+                        ),
+                  label:
+                      Text(
+                    isSaving
+                        ? 'Menyimpan...'
+                        : 'Buat Touring',
+                  ),
+                  onPressed:
+                      isSaving
+                          ? null
+                          : () async {
+                              final String name =
+                                  nameController
+                                      .text
+                                      .trim();
+
+                              if (name.isEmpty) {
+                                ScaffoldMessenger
+                                    .of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text(
+                                      'Nama touring belum diisi',
+                                    ),
+                                  ),
+                                );
+
+                                return;
+                              }
+
+                              final User? user =
+                                  FirebaseAuth
+                                      .instance
+                                      .currentUser;
+
+                              if (user == null) {
+                                ScaffoldMessenger
+                                    .of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text(
+                                      'Akun Firebase belum siap',
+                                    ),
+                                  ),
+                                );
+
+                                return;
+                              }
+
+                              setDialogState(() {
+                                isSaving =
+                                    true;
+                              });
+
+                              try {
+                                final TouringService
+                                    service =
+                                    TouringService();
+
+                                final String code =
+                                    await service
+                                        .createTouring(
+                                  name:
+                                      name,
+                                  captainId:
+                                      user.uid,
+                                  captainName:
+                                      'Road Captain',
+                                  startLat:
+                                      _titikKumpul
+                                          .latitude,
+                                  startLng:
+                                      _titikKumpul
+                                          .longitude,
+                                  destinationLat:
+                                      _destinasi
+                                          .latitude,
+                                  destinationLng:
+                                      _destinasi
+                                          .longitude,
+                                );
+
+                                if (!mounted) {
+                                  return;
+                                }
+
+                                setState(() {
+                                  _activeTouringCode =
+                                      code;
+
+                                  _activeTouringName =
+                                      name;
+                                });
+
+                                Navigator.pop(
+                                  dialogContext,
+                                );
+
+                                _showTouringCreatedDialog(
+                                  name,
+                                  code,
+                                );
+                              } catch (e) {
+                                debugPrint(
+                                  'ERROR CREATE TOURING: $e',
+                                );
+
+                                if (!mounted) {
+                                  return;
+                                }
+
+                                setDialogState(() {
+                                  isSaving =
+                                      false;
+                                });
+
+                                ScaffoldMessenger
+                                    .of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content:
+                                        Text(
+                                      'Gagal membuat touring: $e',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ==========================================================
+  // TOURING CREATED
+  // ==========================================================
+
+  void _showTouringCreatedDialog(
+    String name,
+    String code,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title:
+              const Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color:
+                    Colors.green,
+                size:
+                    30,
+              ),
+              SizedBox(
+                width: 8,
+              ),
+              Expanded(
+                child: Text(
+                  'Touring Berhasil Dibuat',
+                ),
+              ),
+            ],
+          ),
+          content:
+              Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              Text(
+                name,
+                textAlign:
+                    TextAlign.center,
+                style:
+                    const TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                  fontSize:
+                      17,
+                ),
+              ),
+
+              const SizedBox(
+                height: 20,
+              ),
+
+              const Text(
+                'KODE TOURING',
+                style:
+                    TextStyle(
+                  fontSize:
+                      12,
+                  color:
+                      Colors.grey,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(
+                height: 6,
+              ),
+
+              Container(
+                width:
+                    double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(
+                  vertical:
+                      18,
+                  horizontal:
+                      10,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.blueAccent,
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
+                ),
+                child:
+                    SelectableText(
+                  code,
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize:
+                        30,
+                    fontWeight:
+                        FontWeight.bold,
+                    letterSpacing:
+                        5,
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              const Text(
+                'Bagikan kode ini kepada anggota '
+                'yang ingin bergabung.',
+                textAlign:
+                    TextAlign.center,
+                style:
+                    TextStyle(
+                  fontSize:
+                      12,
+                  color:
+                      Colors.grey,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton.icon(
+              icon:
+                  const Icon(
+                Icons.copy,
+              ),
+              label:
+                  const Text(
+                'Copy Kode',
+              ),
+              onPressed: () async {
+                await Clipboard.setData(
+                  ClipboardData(
+                    text: code,
+                  ),
+                );
+
+                if (!context.mounted) {
+                  return;
+                }
+
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(
+                  const SnackBar(
+                    content:
+                        Text(
+                      'Kode touring berhasil disalin',
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                );
+              },
+              child:
+                  const Text(
+                'Selesai',
               ),
             ),
           ],
@@ -1151,7 +1554,6 @@ class _MapScreenState extends State<MapScreen> {
                   mainAxisSize:
                       MainAxisSize.min,
                   children: [
-
                     TextField(
                       controller:
                           nameController,
@@ -1169,8 +1571,7 @@ class _MapScreenState extends State<MapScreen> {
                     ),
 
                     const SizedBox(
-                      height:
-                          18,
+                      height: 18,
                     ),
 
                     DropdownButtonFormField<
@@ -1189,7 +1590,6 @@ class _MapScreenState extends State<MapScreen> {
                             OutlineInputBorder(),
                       ),
                       items: const [
-
                         DropdownMenuItem(
                           value:
                               'Motor',
@@ -1209,7 +1609,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'Scooter',
@@ -1229,7 +1628,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'Mobil',
@@ -1249,7 +1647,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'SUV',
@@ -1257,8 +1654,7 @@ class _MapScreenState extends State<MapScreen> {
                               Row(
                             children: [
                               Icon(
-                                Icons
-                                    .directions_car_filled,
+                                Icons.directions_car_filled,
                               ),
                               SizedBox(
                                 width:
@@ -1270,7 +1666,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'Truck',
@@ -1290,7 +1685,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'Van',
@@ -1298,8 +1692,7 @@ class _MapScreenState extends State<MapScreen> {
                               Row(
                             children: [
                               Icon(
-                                Icons
-                                    .airport_shuttle,
+                                Icons.airport_shuttle,
                               ),
                               SizedBox(
                                 width:
@@ -1311,7 +1704,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'Taxi',
@@ -1331,7 +1723,6 @@ class _MapScreenState extends State<MapScreen> {
                             ],
                           ),
                         ),
-
                         DropdownMenuItem(
                           value:
                               'Sepeda',
@@ -1367,7 +1758,6 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
               actions: [
-
                 TextButton(
                   onPressed: () =>
                       Navigator.pop(
@@ -1378,7 +1768,6 @@ class _MapScreenState extends State<MapScreen> {
                     'Batal',
                   ),
                 ),
-
                 ElevatedButton.icon(
                   icon:
                       const Icon(
@@ -1389,46 +1778,37 @@ class _MapScreenState extends State<MapScreen> {
                     'Simpan',
                   ),
                   onPressed: () {
-
                     if (nameController
                         .text
                         .trim()
                         .isNotEmpty) {
-
                       setState(() {
-                        _groupMembers
-                            .add(
+                        _groupMembers.add(
                           Member(
                             id:
                                 DateTime
                                     .now()
                                     .millisecondsSinceEpoch
                                     .toString(),
-
                             name:
                                 nameController
                                     .text
                                     .trim(),
-
                             location:
                                 LatLng(
                               (_currentPosition
                                           ?.latitude ??
                                       -6.175392) +
                                   0.002,
-
                               (_currentPosition
                                           ?.longitude ??
                                       106.827153) +
                                   0.002,
                             ),
-
                             status:
                                 'Riding',
-
                             color:
                                 Colors.green,
-
                             vehicleType:
                                 selectedVehicle,
                           ),
@@ -1450,7 +1830,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // DAFTAR ANGGOTA
+  // MEMBER LIST
   // ==========================================================
 
   void _showMemberList() {
@@ -1472,7 +1852,7 @@ class _MapScreenState extends State<MapScreen> {
         return Padding(
           padding:
               const EdgeInsets.all(
-            16.0,
+            16,
           ),
           child:
               Column(
@@ -1481,12 +1861,10 @@ class _MapScreenState extends State<MapScreen> {
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
-
               Row(
                 mainAxisAlignment:
                     MainAxisAlignment.spaceBetween,
                 children: [
-
                   Text(
                     'Daftar Anggota (${_groupMembers.length + 1})',
                     style:
@@ -1497,7 +1875,6 @@ class _MapScreenState extends State<MapScreen> {
                           FontWeight.bold,
                     ),
                   ),
-
                   IconButton(
                     icon:
                         const Icon(
@@ -1519,7 +1896,6 @@ class _MapScreenState extends State<MapScreen> {
 
               const Divider(),
 
-              // SAYA
               ListTile(
                 leading:
                     CircleAvatar(
@@ -1552,7 +1928,6 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
 
-              // ANGGOTA
               ..._groupMembers.map(
                 (member) {
                   return ListTile(
@@ -1596,18 +1971,25 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // DISPOSE
+  // MESSAGE
   // ==========================================================
 
-  @override
-  void dispose() {
-    _positionStream?.cancel();
+  void _showMessage(
+    String message,
+  ) {
+    if (!mounted) return;
 
-    _engine?.leaveChannel();
-
-    _engine?.release();
-
-    super.dispose();
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content:
+            Text(message),
+        duration:
+            const Duration(
+          seconds: 2,
+        ),
+      ),
+    );
   }
 
   // ==========================================================
@@ -1630,8 +2012,17 @@ class _MapScreenState extends State<MapScreen> {
         foregroundColor:
             Colors.white,
         actions: [
+          IconButton(
+            icon:
+                const Icon(
+              Icons.flag_circle,
+            ),
+            tooltip:
+                'Buat Touring',
+            onPressed:
+                _showCreateTouringDialog,
+          ),
 
-          // ATUR RUTE
           IconButton(
             icon:
                 const Icon(
@@ -1643,7 +2034,6 @@ class _MapScreenState extends State<MapScreen> {
                 _showSetRouteDialog,
           ),
 
-          // TAMBAH ANGGOTA
           IconButton(
             icon:
                 const Icon(
@@ -1655,7 +2045,6 @@ class _MapScreenState extends State<MapScreen> {
                 _showAddMemberDialog,
           ),
 
-          // DAFTAR ANGGOTA
           IconButton(
             icon:
                 Badge(
@@ -1674,7 +2063,6 @@ class _MapScreenState extends State<MapScreen> {
                 _showMemberList,
           ),
 
-          // MODE MOTOR / MOBIL
           IconButton(
             icon:
                 Icon(
@@ -1697,7 +2085,6 @@ class _MapScreenState extends State<MapScreen> {
             },
           ),
 
-          // LAYER
           PopupMenuButton<String>(
             icon:
                 const Icon(
@@ -1725,26 +2112,23 @@ class _MapScreenState extends State<MapScreen> {
                     child:
                         Row(
                       children: [
-
                         Icon(
                           key ==
                                   'Dark Mode'
                               ? Icons.dark_mode
-                              : (key ==
+                              : key ==
                                       'Standard'
                                   ? Icons.map
-                                  : Icons.public),
+                                  : Icons.public,
                           color:
                               Colors.blueAccent,
                           size:
                               20,
                         ),
-
                         const SizedBox(
                           width:
                               10,
                         ),
-
                         Text(
                           key,
                         ),
@@ -1758,21 +2142,17 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
 
-      // ======================================================
+      // ========================================================
       // BODY
-      // ======================================================
+      // ========================================================
 
       body:
           Stack(
         children: [
-
-          // ==================================================
-          // MAP
-          // ==================================================
-
           FlutterMap(
             mapController:
                 _mapController,
+
             options:
                 MapOptions(
               initialCenter:
@@ -1782,9 +2162,12 @@ class _MapScreenState extends State<MapScreen> {
               onTap:
                   _handleMapTap,
             ),
-            children: [
 
-              // TILE
+            children: [
+              // ==================================================
+              // MAP TILE
+              // ==================================================
+
               TileLayer(
                 urlTemplate:
                     _tileProviders[
@@ -1793,14 +2176,14 @@ class _MapScreenState extends State<MapScreen> {
                     'com.tedapp.touringmap',
               ),
 
-              // =================================================
+              // ==================================================
               // ROAD ROUTE
-              // =================================================
+              // ==================================================
 
               PolylineLayer(
                 polylines: [
-
-                  if (_routePoints.isNotEmpty)
+                  if (_routePoints
+                      .isNotEmpty)
                     Polyline(
                       points:
                           _routePoints,
@@ -1814,14 +2197,16 @@ class _MapScreenState extends State<MapScreen> {
                 ],
               ),
 
-              // =================================================
-              // MARKER
-              // =================================================
+              // ==================================================
+              // MARKERS
+              // ==================================================
 
               MarkerLayer(
                 markers: [
-
+                  // =================================================
                   // TITIK KUMPUL
+                  // =================================================
+
                   Marker(
                     point:
                         _titikKumpul,
@@ -1839,7 +2224,10 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
 
+                  // =================================================
                   // DESTINASI
+                  // =================================================
+
                   Marker(
                     point:
                         _destinasi,
@@ -1857,54 +2245,92 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
 
-                  // POSISI SAYA
+                  // =================================================
+                  // POSISI KITA
+                  // =================================================
+
                   if (_currentPosition !=
                       null)
                     Marker(
                       point:
                           _currentPosition!,
                       width:
-                          60,
+                          80,
                       height:
-                          60,
+                          100,
                       child:
-                          Container(
-                        decoration:
-                            BoxDecoration(
-                          shape:
-                              BoxShape.circle,
-                          color:
-                              Colors.blueAccent,
-                          border:
-                              Border.all(
-                            color:
-                                Colors.white,
-                            width:
-                                3,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color:
-                                  Colors.black38,
-                              blurRadius:
-                                  5,
-                            ),
-                          ],
-                        ),
-                        child:
-                            Icon(
                           _isMotorMode
-                              ? Icons.two_wheeler
-                              : Icons.directions_car,
-                          color:
-                              Colors.white,
-                          size:
-                              30,
-                        ),
-                      ),
+                              ? Transform.rotate(
+                                  angle:
+                                      _heading *
+                                          math.pi /
+                                          180,
+
+                                  child:
+                                      Image.asset(
+                                    'assets/scooter_top.png',
+
+                                    width:
+                                        70,
+
+                                    height:
+                                        95,
+
+                                    fit:
+                                        BoxFit.contain,
+                                  ),
+                                )
+                              : Transform.rotate(
+                                  angle:
+                                      _heading *
+                                          math.pi /
+                                          180,
+
+                                  child:
+                                      Container(
+                                    width:
+                                        55,
+                                    height:
+                                        55,
+                                    decoration:
+                                        BoxDecoration(
+                                      shape:
+                                          BoxShape.circle,
+                                      color:
+                                          Colors.blueAccent,
+                                      border:
+                                          Border.all(
+                                        color:
+                                            Colors.white,
+                                        width:
+                                            3,
+                                      ),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color:
+                                              Colors.black38,
+                                          blurRadius:
+                                              5,
+                                        ),
+                                      ],
+                                    ),
+                                    child:
+                                        const Icon(
+                                      Icons
+                                          .directions_car,
+                                      color:
+                                          Colors.white,
+                                      size:
+                                          30,
+                                    ),
+                                  ),
+                                ),
                     ),
 
-                  // ANGGOTA
+                  // =================================================
+                  // MEMBER
+                  // =================================================
+
                   ..._groupMembers.map(
                     (member) {
                       return Marker(
@@ -1917,7 +2343,6 @@ class _MapScreenState extends State<MapScreen> {
                         child:
                             Column(
                           children: [
-
                             Container(
                               padding:
                                   const EdgeInsets.symmetric(
@@ -1959,7 +2384,6 @@ class _MapScreenState extends State<MapScreen> {
                                 ),
                               ),
                             ),
-
                             Icon(
                               _getVehicleIcon(
                                 member.vehicleType,
@@ -1979,9 +2403,9 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
 
-          // ==================================================
-          // LOADING ROUTE
-          // ==================================================
+          // ======================================================
+          // ROUTING LOADING
+          // ======================================================
 
           if (_isLoadingRoute)
             Positioned(
@@ -2005,7 +2429,6 @@ class _MapScreenState extends State<MapScreen> {
                     mainAxisSize:
                         MainAxisSize.min,
                     children: [
-
                       const SizedBox(
                         width:
                             16,
@@ -2017,12 +2440,10 @@ class _MapScreenState extends State<MapScreen> {
                               2,
                         ),
                       ),
-
                       const SizedBox(
                         width:
                             8,
                       ),
-
                       const Text(
                         'Menghitung rute...',
                         style:
@@ -2037,9 +2458,9 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
 
-          // ==================================================
-          // INSTRUKSI PILIH TITIK
-          // ==================================================
+          // ======================================================
+          // PICKING MODE
+          // ======================================================
 
           if (_mapPickingMode !=
               null)
@@ -2068,18 +2489,15 @@ class _MapScreenState extends State<MapScreen> {
                   child:
                       Row(
                     children: [
-
                       const Icon(
                         Icons.touch_app,
                         color:
                             Colors.white,
                       ),
-
                       const SizedBox(
                         width:
                             10,
                       ),
-
                       Expanded(
                         child:
                             Text(
@@ -2096,7 +2514,6 @@ class _MapScreenState extends State<MapScreen> {
                           ),
                         ),
                       ),
-
                       IconButton(
                         icon:
                             const Icon(
@@ -2118,9 +2535,9 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
 
-          // ==================================================
-          // INFO GPS / JARAK / ETA
-          // ==================================================
+          // ======================================================
+          // INFO GPS
+          // ======================================================
 
           if (_mapPickingMode ==
               null)
@@ -2154,13 +2571,10 @@ class _MapScreenState extends State<MapScreen> {
                   child:
                       Column(
                     children: [
-
-                      // GPS STATUS
                       Row(
                         mainAxisAlignment:
                             MainAxisAlignment.center,
                         children: [
-
                           Icon(
                             _locationReady
                                 ? Icons.gps_fixed
@@ -2172,12 +2586,10 @@ class _MapScreenState extends State<MapScreen> {
                                     ? Colors.green
                                     : Colors.orange,
                           ),
-
                           const SizedBox(
                             width:
                                 6,
                           ),
-
                           Text(
                             _gpsStatus,
                             style:
@@ -2204,11 +2616,8 @@ class _MapScreenState extends State<MapScreen> {
                         mainAxisAlignment:
                             MainAxisAlignment.spaceAround,
                         children: [
-
-                          // JARAK
                           Column(
                             children: [
-
                               const Text(
                                 'Jarak',
                                 style:
@@ -2219,7 +2628,6 @@ class _MapScreenState extends State<MapScreen> {
                                       Colors.grey,
                                 ),
                               ),
-
                               Text(
                                 _locationReady
                                     ? '${_distanceInKm.toStringAsFixed(1)} km'
@@ -2244,10 +2652,8 @@ class _MapScreenState extends State<MapScreen> {
                                 Colors.grey.shade300,
                           ),
 
-                          // ETA
                           Column(
                             children: [
-
                               const Text(
                                 'Est. Waktu',
                                 style:
@@ -2258,7 +2664,6 @@ class _MapScreenState extends State<MapScreen> {
                                       Colors.grey,
                                 ),
                               ),
-
                               Text(
                                 _locationReady
                                     ? '$_estimatedMinutes mnt'
@@ -2285,10 +2690,8 @@ class _MapScreenState extends State<MapScreen> {
                                 Colors.grey.shade300,
                           ),
 
-                          // STATUS TOURING
                           Column(
                             children: [
-
                               const Text(
                                 'Status',
                                 style:
@@ -2299,7 +2702,6 @@ class _MapScreenState extends State<MapScreen> {
                                       Colors.grey,
                                 ),
                               ),
-
                               Text(
                                 _isTouring
                                     ? 'AKTIF'
@@ -2326,9 +2728,64 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
 
-          // ==================================================
-          // TOMBOL MULAI / STOP TOURING
-          // ==================================================
+          // ======================================================
+          // ACTIVE TOURING
+          // ======================================================
+
+          if (_activeTouringCode != null)
+            Positioned(
+              top:
+                  105,
+              left:
+                  16,
+              child:
+                  Card(
+                elevation:
+                    4,
+                child:
+                    Padding(
+                  padding:
+                      const EdgeInsets.symmetric(
+                    horizontal:
+                        10,
+                    vertical:
+                        6,
+                  ),
+                  child:
+                      Row(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.flag,
+                        color:
+                            Colors.blueAccent,
+                        size:
+                            18,
+                      ),
+                      const SizedBox(
+                        width:
+                            6,
+                      ),
+                      Text(
+                        'Touring: $_activeTouringCode',
+                        style:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.bold,
+                          fontSize:
+                              12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // ======================================================
+          // START TOURING
+          // ======================================================
 
           Positioned(
             bottom:
@@ -2390,9 +2847,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // ==================================================
+          // ======================================================
           // CENTER GPS
-          // ==================================================
+          // ======================================================
 
           Positioned(
             bottom:
@@ -2416,9 +2873,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // ==================================================
+          // ======================================================
           // PTT
-          // ==================================================
+          // ======================================================
 
           Positioned(
             bottom:
@@ -2438,7 +2895,6 @@ class _MapScreenState extends State<MapScreen> {
               mainAxisSize:
                   MainAxisSize.min,
               children: [
-
                 Container(
                   padding:
                       const EdgeInsets.symmetric(
@@ -2512,7 +2968,6 @@ class _MapScreenState extends State<MapScreen> {
                       shape:
                           BoxShape.circle,
                       boxShadow: [
-
                         BoxShadow(
                           color:
                               _isTalking
@@ -2549,9 +3004,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // ==================================================
-          // WATERMARK
-          // ==================================================
+          // ======================================================
+          // CREATED BY
+          // ======================================================
 
           Positioned(
             bottom:
@@ -2672,7 +3127,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // START TRANSMISSION
+  // PTT START
   // ==========================================================
 
   Future<void>
@@ -2697,7 +3152,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // STOP TRANSMISSION
+  // PTT STOP
   // ==========================================================
 
   Future<void>
@@ -2719,5 +3174,20 @@ class _MapScreenState extends State<MapScreen> {
       _pttStatusText =
           'Tekan & Tahan untuk Bicara';
     });
+  }
+
+  // ==========================================================
+  // DISPOSE
+  // ==========================================================
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+
+    _engine?.leaveChannel();
+
+    _engine?.release();
+
+    super.dispose();
   }
 }
