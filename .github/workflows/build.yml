@@ -42,4 +42,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: touring-map-apk
-          path: build/app/outputs/flutter-apk/MytouringMap.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
