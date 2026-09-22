@@ -139,12 +139,6 @@ class _MapScreenState extends State<MapScreen> {
 
   // ==========================================================
   // GPS HEADING
-  //
-  // Nilai dalam derajat:
-  // 0   = Utara
-  // 90  = Timur
-  // 180 = Selatan
-  // 270 = Barat
   // ==========================================================
 
   double _heading = 0.0;
@@ -398,8 +392,6 @@ class _MapScreenState extends State<MapScreen> {
 
         _locationReady = true;
 
-        // Heading hanya digunakan kalau
-        // kendaraan sedang bergerak.
         if (position.speed > 1.0 &&
             position.heading >= 0) {
           _heading =
@@ -473,10 +465,6 @@ class _MapScreenState extends State<MapScreen> {
 
           _locationReady = true;
 
-          // Jangan ubah heading ketika kendaraan
-          // sedang hampir berhenti karena GPS
-          // biasanya menghasilkan heading yang
-          // tidak stabil.
           if (position.speed > 1.0 &&
               position.heading >= 0) {
             _heading =
@@ -795,7 +783,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // VEHICLE ICON
+  // VEHICLE ICON FALLBACK
   // ==========================================================
 
   IconData _getVehicleIcon(
@@ -829,6 +817,21 @@ class _MapScreenState extends State<MapScreen> {
       default:
         return Icons.directions_car;
     }
+  }
+
+  // ==========================================================
+  // MEMBER VEHICLE IMAGE
+  // ==========================================================
+
+  String _getVehicleImage(
+    String vehicleType,
+  ) {
+    if (vehicleType == 'Motor' ||
+        vehicleType == 'Scooter') {
+      return 'assets/metic.png';
+    }
+
+    return 'assets/xtrail.png';
   }
 
   // ==========================================================
@@ -1070,11 +1073,9 @@ class _MapScreenState extends State<MapScreen> {
                             OutlineInputBorder(),
                       ),
                     ),
-
                     const SizedBox(
                       height: 18,
                     ),
-
                     const Text(
                       'Titik Kumpul',
                       style:
@@ -1083,11 +1084,9 @@ class _MapScreenState extends State<MapScreen> {
                             FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(
                       height: 4,
                     ),
-
                     Container(
                       width:
                           double.infinity,
@@ -1112,11 +1111,9 @@ class _MapScreenState extends State<MapScreen> {
                         '${_titikKumpul.longitude.toStringAsFixed(6)}',
                       ),
                     ),
-
                     const SizedBox(
                       height: 14,
                     ),
-
                     const Text(
                       'Destinasi',
                       style:
@@ -1125,11 +1122,9 @@ class _MapScreenState extends State<MapScreen> {
                             FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(
                       height: 4,
                     ),
-
                     Container(
                       width:
                           double.infinity,
@@ -1154,11 +1149,9 @@ class _MapScreenState extends State<MapScreen> {
                         '${_destinasi.longitude.toStringAsFixed(6)}',
                       ),
                     ),
-
                     const SizedBox(
                       height: 12,
                     ),
-
                     const Text(
                       'Atur titik melalui menu "Atur Rute" '
                       'untuk memilih langsung dari peta.',
@@ -1187,7 +1180,6 @@ class _MapScreenState extends State<MapScreen> {
                     'Batal',
                   ),
                 ),
-
                 ElevatedButton.icon(
                   icon: isSaving
                       ? const SizedBox(
@@ -1230,7 +1222,6 @@ class _MapScreenState extends State<MapScreen> {
                                     ),
                                   ),
                                 );
-
                                 return;
                               }
 
@@ -1251,7 +1242,6 @@ class _MapScreenState extends State<MapScreen> {
                                     ),
                                   ),
                                 );
-
                                 return;
                               }
 
@@ -1394,11 +1384,9 @@ class _MapScreenState extends State<MapScreen> {
                       17,
                 ),
               ),
-
               const SizedBox(
                 height: 20,
               ),
-
               const Text(
                 'KODE TOURING',
                 style:
@@ -1411,11 +1399,9 @@ class _MapScreenState extends State<MapScreen> {
                       FontWeight.bold,
                 ),
               ),
-
               const SizedBox(
                 height: 6,
               ),
-
               Container(
                 width:
                     double.infinity,
@@ -1453,11 +1439,9 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(
                 height: 12,
               ),
-
               const Text(
                 'Bagikan kode ini kepada anggota '
                 'yang ingin bergabung.',
@@ -1506,7 +1490,6 @@ class _MapScreenState extends State<MapScreen> {
                 );
               },
             ),
-
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(
@@ -1569,11 +1552,9 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(
                       height: 18,
                     ),
-
                     DropdownButtonFormField<
                         String>(
                       value:
@@ -1893,9 +1874,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ],
               ),
-
               const Divider(),
-
               ListTile(
                 leading:
                     CircleAvatar(
@@ -1927,7 +1906,6 @@ class _MapScreenState extends State<MapScreen> {
                       Colors.blueAccent,
                 ),
               ),
-
               ..._groupMembers.map(
                 (member) {
                   return ListTile(
@@ -1963,7 +1941,7 @@ class _MapScreenState extends State<MapScreen> {
                   );
                 },
               ),
-            ],
+            ],m ,
           ),
         );
       },
@@ -2022,7 +2000,6 @@ class _MapScreenState extends State<MapScreen> {
             onPressed:
                 _showCreateTouringDialog,
           ),
-
           IconButton(
             icon:
                 const Icon(
@@ -2033,7 +2010,6 @@ class _MapScreenState extends State<MapScreen> {
             onPressed:
                 _showSetRouteDialog,
           ),
-
           IconButton(
             icon:
                 const Icon(
@@ -2044,7 +2020,6 @@ class _MapScreenState extends State<MapScreen> {
             onPressed:
                 _showAddMemberDialog,
           ),
-
           IconButton(
             icon:
                 Badge(
@@ -2062,7 +2037,6 @@ class _MapScreenState extends State<MapScreen> {
             onPressed:
                 _showMemberList,
           ),
-
           IconButton(
             icon:
                 Icon(
@@ -2084,7 +2058,6 @@ class _MapScreenState extends State<MapScreen> {
               _calculateDistanceAndEta();
             },
           ),
-
           PopupMenuButton<String>(
             icon:
                 const Icon(
@@ -2105,1089 +2078,4 @@ class _MapScreenState extends State<MapScreen> {
                   .keys
                   .map(
                 (String key) {
-                  return PopupMenuItem<
-                      String>(
-                    value:
-                        key,
-                    child:
-                        Row(
-                      children: [
-                        Icon(
-                          key ==
-                                  'Dark Mode'
-                              ? Icons.dark_mode
-                              : key ==
-                                      'Standard'
-                                  ? Icons.map
-                                  : Icons.public,
-                          color:
-                              Colors.blueAccent,
-                          size:
-                              20,
-                        ),
-                        const SizedBox(
-                          width:
-                              10,
-                        ),
-                        Text(
-                          key,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ).toList();
-            },
-          ),
-        ],
-      ),
-
-      // ========================================================
-      // BODY
-      // ========================================================
-
-      body:
-          Stack(
-        children: [
-          FlutterMap(
-            mapController:
-                _mapController,
-
-            options:
-                MapOptions(
-              initialCenter:
-                  _titikKumpul,
-              initialZoom:
-                  13.0,
-              onTap:
-                  _handleMapTap,
-            ),
-
-            children: [
-              // ==================================================
-              // MAP TILE
-              // ==================================================
-
-              TileLayer(
-                urlTemplate:
-                    _tileProviders[
-                        _selectedTile]!,
-                userAgentPackageName:
-                    'com.tedapp.touringmap',
-              ),
-
-              // ==================================================
-              // ROAD ROUTE
-              // ==================================================
-
-              PolylineLayer(
-                polylines: [
-                  if (_routePoints
-                      .isNotEmpty)
-                    Polyline(
-                      points:
-                          _routePoints,
-                      strokeWidth:
-                          5.0,
-                      color:
-                          _isMotorMode
-                              ? Colors.blueAccent
-                              : Colors.orangeAccent,
-                    ),
-                ],
-              ),
-
-              // ==================================================
-              // MARKERS
-              // ==================================================
-
-              MarkerLayer(
-                markers: [
-                  // =================================================
-                  // TITIK KUMPUL
-                  // =================================================
-
-                  Marker(
-                    point:
-                        _titikKumpul,
-                    width:
-                        80,
-                    height:
-                        80,
-                    child:
-                        const Icon(
-                      Icons.location_on,
-                      color:
-                          Colors.red,
-                      size:
-                          40,
-                    ),
-                  ),
-
-                  // =================================================
-                  // DESTINASI
-                  // =================================================
-
-                  Marker(
-                    point:
-                        _destinasi,
-                    width:
-                        80,
-                    height:
-                        80,
-                    child:
-                        const Icon(
-                      Icons.flag,
-                      color:
-                          Colors.green,
-                      size:
-                          38,
-                    ),
-                  ),
-
-                  // =================================================
-                  // POSISI KITA
-                  // =================================================
-
-                  if (_currentPosition !=
-                      null)
-                    Marker(
-                      point:
-                          _currentPosition!,
-                      width:
-                          80,
-                      height:
-                          100,
-                      child:
-                          _isMotorMode
-                              ? Transform.rotate(
-                                  angle:
-                                      _heading *
-                                          math.pi /
-                                          180,
-
-                                  child:
-                                      Image.asset(
-                                    'assets/metic.png',
-
-                                    width:
-                                        70,
-
-                                    height:
-                                        95,
-
-                                    fit:
-                                        BoxFit.contain,
-                                  ),
-                                )
-                              : Transform.rotate(
-                                  angle:
-                                      _heading *
-                                          math.pi /
-                                          180,
-
-                                  child:
-                                      Container(
-                                    width:
-                                        55,
-                                    height:
-                                        55,
-                                    decoration:
-                                        BoxDecoration(
-                                      shape:
-                                          BoxShape.circle,
-                                      color:
-                                          Colors.blueAccent,
-                                      border:
-                                          Border.all(
-                                        color:
-                                            Colors.white,
-                                        width:
-                                            3,
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color:
-                                              Colors.black38,
-                                          blurRadius:
-                                              5,
-                                        ),
-                                      ],
-                                    ),
-                                    child:
-                                        const Icon(
-                                      Icons
-                                          .directions_car,
-                                      color:
-                                          Colors.white,
-                                      size:
-                                          30,
-                                    ),
-                                  ),
-                                ),
-                    ),
-
-                  // =================================================
-                  // MEMBER
-                  // =================================================
-
-                  ..._groupMembers.map(
-                    (member) {
-                      return Marker(
-                        point:
-                            member.location,
-                        width:
-                            80,
-                        height:
-                            65,
-                        child:
-                            Column(
-                          children: [
-                            Container(
-                              padding:
-                                  const EdgeInsets.symmetric(
-                                horizontal:
-                                    5,
-                                vertical:
-                                    2,
-                              ),
-                              decoration:
-                                  BoxDecoration(
-                                color:
-                                    Colors.white,
-                                borderRadius:
-                                    BorderRadius.circular(
-                                  4,
-                                ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    blurRadius:
-                                        2,
-                                    color:
-                                        Colors.black26,
-                                  ),
-                                ],
-                              ),
-                              child:
-                                  Text(
-                                member.name
-                                    .split(
-                                      ' ',
-                                    )
-                                    .first,
-                                style:
-                                    const TextStyle(
-                                  fontSize:
-                                      10,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              _getVehicleIcon(
-                                member.vehicleType,
-                              ),
-                              color:
-                                  member.color,
-                              size:
-                                  30,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          // ======================================================
-          // ROUTING LOADING
-          // ======================================================
-
-          if (_isLoadingRoute)
-            Positioned(
-              top:
-                  100,
-              right:
-                  16,
-              child:
-                  Card(
-                child:
-                    Padding(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal:
-                        12,
-                    vertical:
-                        8,
-                  ),
-                  child:
-                      Row(
-                    mainAxisSize:
-                        MainAxisSize.min,
-                    children: [
-                      const SizedBox(
-                        width:
-                            16,
-                        height:
-                            16,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth:
-                              2,
-                        ),
-                      ),
-                      const SizedBox(
-                        width:
-                            8,
-                      ),
-                      const Text(
-                        'Menghitung rute...',
-                        style:
-                            TextStyle(
-                          fontSize:
-                              12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // ======================================================
-          // PICKING MODE
-          // ======================================================
-
-          if (_mapPickingMode !=
-              null)
-            Positioned(
-              top:
-                  16,
-              left:
-                  16,
-              right:
-                  16,
-              child:
-                  Card(
-                color:
-                    Colors.blueAccent,
-                elevation:
-                    6,
-                child:
-                    Padding(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal:
-                        16,
-                    vertical:
-                        12,
-                  ),
-                  child:
-                      Row(
-                    children: [
-                      const Icon(
-                        Icons.touch_app,
-                        color:
-                            Colors.white,
-                      ),
-                      const SizedBox(
-                        width:
-                            10,
-                      ),
-                      Expanded(
-                        child:
-                            Text(
-                          _mapPickingMode ==
-                                  'kumpul'
-                              ? 'Tap peta untuk memilih TITIK KUMPUL'
-                              : 'Tap peta untuk memilih DESTINASI',
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.white,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon:
-                            const Icon(
-                          Icons.close,
-                          color:
-                              Colors.white,
-                        ),
-                        onPressed:
-                            () {
-                          setState(() {
-                            _mapPickingMode =
-                                null;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // ======================================================
-          // INFO GPS
-          // ======================================================
-
-          if (_mapPickingMode ==
-              null)
-            Positioned(
-              top:
-                  16,
-              left:
-                  16,
-              right:
-                  16,
-              child:
-                  Card(
-                elevation:
-                    4,
-                shape:
-                    RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
-                  ),
-                ),
-                child:
-                    Padding(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal:
-                        16,
-                    vertical:
-                        10,
-                  ),
-                  child:
-                      Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _locationReady
-                                ? Icons.gps_fixed
-                                : Icons.gps_not_fixed,
-                            size:
-                                17,
-                            color:
-                                _locationReady
-                                    ? Colors.green
-                                    : Colors.orange,
-                          ),
-                          const SizedBox(
-                            width:
-                                6,
-                          ),
-                          Text(
-                            _gpsStatus,
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  12,
-                              color:
-                                  _locationReady
-                                      ? Colors.green
-                                      : Colors.orange,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(
-                        height:
-                            8,
-                      ),
-
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceAround,
-                        children: [
-                          Column(
-                            children: [
-                              const Text(
-                                'Jarak',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      11,
-                                  color:
-                                      Colors.grey,
-                                ),
-                              ),
-                              Text(
-                                _locationReady
-                                    ? '${_distanceInKm.toStringAsFixed(1)} km'
-                                    : '--',
-                                style:
-                                    const TextStyle(
-                                  fontSize:
-                                      16,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          Container(
-                            height:
-                                30,
-                            width:
-                                1,
-                            color:
-                                Colors.grey.shade300,
-                          ),
-
-                          Column(
-                            children: [
-                              const Text(
-                                'Est. Waktu',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      11,
-                                  color:
-                                      Colors.grey,
-                                ),
-                              ),
-                              Text(
-                                _locationReady
-                                    ? '$_estimatedMinutes mnt'
-                                    : '--',
-                                style:
-                                    const TextStyle(
-                                  fontSize:
-                                      16,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  color:
-                                      Colors.blueAccent,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          Container(
-                            height:
-                                30,
-                            width:
-                                1,
-                            color:
-                                Colors.grey.shade300,
-                          ),
-
-                          Column(
-                            children: [
-                              const Text(
-                                'Status',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      11,
-                                  color:
-                                      Colors.grey,
-                                ),
-                              ),
-                              Text(
-                                _isTouring
-                                    ? 'AKTIF'
-                                    : 'SIAP',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      15,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  color:
-                                      _isTouring
-                                          ? Colors.green
-                                          : Colors.orange,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // ======================================================
-          // ACTIVE TOURING
-          // ======================================================
-
-          if (_activeTouringCode != null)
-            Positioned(
-              top:
-                  105,
-              left:
-                  16,
-              child:
-                  Card(
-                elevation:
-                    4,
-                child:
-                    Padding(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal:
-                        10,
-                    vertical:
-                        6,
-                  ),
-                  child:
-                      Row(
-                    mainAxisSize:
-                        MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.flag,
-                        color:
-                            Colors.blueAccent,
-                        size:
-                            18,
-                      ),
-                      const SizedBox(
-                        width:
-                            6,
-                      ),
-                      Text(
-                        'Touring: $_activeTouringCode',
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize:
-                              12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // ======================================================
-          // START TOURING
-          // ======================================================
-
-          Positioned(
-            bottom:
-                155,
-            left:
-                25,
-            right:
-                25,
-            child:
-                SizedBox(
-              height:
-                  52,
-              child:
-                  ElevatedButton.icon(
-                onPressed:
-                    _isTouring
-                        ? _stopTouring
-                        : _startTouring,
-                icon:
-                    Icon(
-                  _isTouring
-                      ? Icons.stop
-                      : Icons.play_arrow,
-                  size:
-                      28,
-                ),
-                label:
-                    Text(
-                  _isTouring
-                      ? 'STOP TOURING'
-                      : 'MULAI TOURING',
-                  style:
-                      const TextStyle(
-                    fontSize:
-                        17,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-                style:
-                    ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _isTouring
-                          ? Colors.red
-                          : Colors.green,
-                  foregroundColor:
-                      Colors.white,
-                  elevation:
-                      5,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      14,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ======================================================
-          // CENTER GPS
-          // ======================================================
-
-          Positioned(
-            bottom:
-                105,
-            right:
-                16,
-            child:
-                FloatingActionButton(
-              mini:
-                  true,
-              backgroundColor:
-                  Colors.white,
-              onPressed:
-                  _centerToMyLocation,
-              child:
-                  const Icon(
-                Icons.my_location,
-                color:
-                    Colors.blueAccent,
-              ),
-            ),
-          ),
-
-          // ======================================================
-          // PTT
-          // ======================================================
-
-          Positioned(
-            bottom:
-                25,
-            left:
-                MediaQuery.of(context)
-                        .size
-                        .width *
-                    0.2,
-            right:
-                MediaQuery.of(context)
-                        .size
-                        .width *
-                    0.2,
-            child:
-                Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal:
-                        12,
-                    vertical:
-                        4,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.black.withOpacity(
-                      0.7,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-                  child:
-                      Text(
-                    _pttStatusText,
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize:
-                          12,
-                    ),
-                    textAlign:
-                        TextAlign.center,
-                  ),
-                ),
-
-                const SizedBox(
-                  height:
-                      8,
-                ),
-
-                GestureDetector(
-                  onTapDown:
-                      (_) =>
-                          _startTransmission(),
-                  onTapUp:
-                      (_) =>
-                          _stopTransmission(),
-                  onTapCancel:
-                      () =>
-                          _stopTransmission(),
-                  child:
-                      AnimatedContainer(
-                    duration:
-                        const Duration(
-                      milliseconds:
-                          150,
-                    ),
-                    width:
-                        _isTalking
-                            ? 75
-                            : 65,
-                    height:
-                        _isTalking
-                            ? 75
-                            : 65,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          _isTalking
-                              ? Colors.redAccent
-                              : Colors.red,
-                      shape:
-                          BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              _isTalking
-                                  ? Colors.red.withOpacity(
-                                      0.6,
-                                    )
-                                  : Colors.black26,
-                          blurRadius:
-                              _isTalking
-                                  ? 15
-                                  : 6,
-                          spreadRadius:
-                              _isTalking
-                                  ? 4
-                                  : 1,
-                        ),
-                      ],
-                    ),
-                    child:
-                        Icon(
-                      _isTalking
-                          ? Icons.mic
-                          : Icons.mic_none,
-                      color:
-                          Colors.white,
-                      size:
-                          _isTalking
-                              ? 38
-                              : 32,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ======================================================
-          // CREATED BY
-          // ======================================================
-
-          Positioned(
-            bottom:
-                12,
-            right:
-                12,
-            child:
-                Container(
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal:
-                    8,
-                vertical:
-                    4,
-              ),
-              decoration:
-                  BoxDecoration(
-                color:
-                    Colors.black.withOpacity(
-                  0.6,
-                ),
-                borderRadius:
-                    BorderRadius.circular(
-                  6,
-                ),
-              ),
-              child:
-                  const Text(
-                'created by Mr. Ted',
-                style:
-                    TextStyle(
-                  color:
-                      Colors.white,
-                  fontSize:
-                      11,
-                  fontWeight:
-                      FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================================
-  // AGORA PTT
-  // ==========================================================
-
-  Future<void> _initAgoraPTT() async {
-    await [
-      Permission.microphone,
-    ].request();
-
-    try {
-      _engine =
-          createAgoraRtcEngine();
-
-      await _engine!.initialize(
-        const RtcEngineContext(
-          appId:
-              agoraAppId,
-          channelProfile:
-              ChannelProfileType
-                  .channelProfileCommunication,
-        ),
-      );
-
-      _engine!.registerEventHandler(
-        RtcEngineEventHandler(
-          onJoinChannelSuccess:
-              (
-            RtcConnection connection,
-            int elapsed,
-          ) {
-            if (!mounted) return;
-
-            setState(() {
-              _isEngineReady =
-                  true;
-
-              _pttStatusText =
-                  'Tekan & Tahan untuk Bicara';
-            });
-          },
-        ),
-      );
-
-      await _engine!.enableAudio();
-
-      await _engine!
-          .muteLocalAudioStream(
-        true,
-      );
-
-      await _engine!.joinChannel(
-        token: '',
-        channelId:
-            channelName,
-        uid:
-            0,
-        options:
-            const ChannelMediaOptions(),
-      );
-    } catch (e) {
-      debugPrint(
-        'Agora error: $e',
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _pttStatusText =
-            'Tekan & Tahan untuk Bicara';
-      });
-    }
-  }
-
-  // ==========================================================
-  // PTT START
-  // ==========================================================
-
-  Future<void>
-      _startTransmission() async {
-    if (_engine != null &&
-        _isEngineReady) {
-      await _engine!
-          .muteLocalAudioStream(
-        false,
-      );
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isTalking =
-          true;
-
-      _pttStatusText =
-          'Transmisi Suara Aktif...';
-    });
-  }
-
-  // ==========================================================
-  // PTT STOP
-  // ==========================================================
-
-  Future<void>
-      _stopTransmission() async {
-    if (_engine != null &&
-        _isEngineReady) {
-      await _engine!
-          .muteLocalAudioStream(
-        true,
-      );
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isTalking =
-          false;
-
-      _pttStatusText =
-          'Tekan & Tahan untuk Bicara';
-    });
-  }
-
-  // ==========================================================
-  // DISPOSE
-  // ==========================================================
-
-  @override
-  void dispose() {
-    _positionStream?.cancel();
-
-    _engine?.leaveChannel();
-
-    _engine?.release();
-
-    super.dispose();
-  }
-}
+                  return PopupMenuItem
