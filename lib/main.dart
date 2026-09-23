@@ -18,6 +18,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'firebase_options.dart';
 import 'services/touring_service.dart';
 
@@ -86,6 +88,20 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // ==========================================================
+  // LOCAL SESSION
+  // ==========================================================
+
+  static const String _prefTouringId = 'active_touring_id';
+  static const String _prefTouringCode = 'active_touring_code';
+  static const String _prefTouringName = 'active_touring_name';
+  static const String _prefIsCaptain = 'active_touring_is_captain';
+  static const String _prefMyName = 'active_touring_my_name';
+  static const String _prefVehicleType = 'active_touring_vehicle_type';
+  static const String _prefIsTouring = 'active_touring_is_touring';
+
+  bool _isRestoringSession = false;
 
   // ==========================================================
   // ROUTE
@@ -203,6 +219,440 @@ class _MapScreenState extends State<MapScreen> {
     if (!kIsWeb) {
       _initAgoraPTT();
     }
+
+    // Tunggu satu frame agar context siap untuk dialog.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreTouringSession();
+    });
+  }
+
+  // ==========================================================
+  // SAVE LOCAL TOURING SESSION
+  // ==========================================================
+
+  Future<void> _saveTouringSession() async {
+    if (_activeTouringId == null) {
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString(
+        _prefTouringId,
+        _activeTouringId!,
+      );
+
+      await prefs.setString(
+        _prefTouringCode,
+        _activeTouringCode ?? '',
+      );
+
+      await prefs.setString(
+        _prefTouringName,
+        _activeTouringName ?? '',
+      );
+
+      await prefs.setBool(
+        _prefIsCaptain,
+        _isCaptain,
+      );
+
+      await prefs.setString(
+        _prefMyName,
+        _myName,
+      );
+
+      await prefs.setString(
+        _prefVehicleType,
+        _myVehicleType,
+      );
+
+      await prefs.setBool(
+        _prefIsTouring,
+        _isTouring,
+      );
+    } catch (e) {
+      debugPrint(
+        'Save touring session error: $e',
+      );
+    }
+  }
+
+  // ==========================================================
+  // CLEAR LOCAL TOURING SESSION
+  // ==========================================================
+
+  Future<void> _clearTouringSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.remove(_prefTouringId);
+      await prefs.remove(_prefTouringCode);
+      await prefs.remove(_prefTouringName);
+      await prefs.remove(_prefIsCaptain);
+      await prefs.remove(_prefMyName);
+      await prefs.remove(_prefVehicleType);
+      await prefs.remove(_prefIsTouring);
+    } catch (e) {
+      debugPrint(
+        'Clear touring session error: $e',
+      );
+    }
+  }
+
+  // ==========================================================
+  // RESTORE TOURING SESSION
+  // ==========================================================
+
+  Future<void> _restoreTouringSession() async {
+    if (_isRestoringSession || !mounted) {
+      return;
+    }
+
+    _isRestoringSession = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final touringId =
+          prefs.getString(_prefTouringId);
+
+      if (touringId == null ||
+          touringId.isEmpty) {
+        return;
+      }
+
+      final touringDoc = await _firestore
+          .collection('tourings')
+          .doc(touringId)
+          .get();
+
+      // Touring sudah tidak ada.
+      if (!touringDoc.exists) {
+        await _clearTouringSession();
+        return;
+      }
+
+      final data = touringDoc.data();
+
+      if (data == null) {
+        await _clearTouringSession();
+        return;
+      }
+
+      final rootStatus =
+          data['status']?.toString() ?? 'waiting';
+
+      // Kalau touring sudah selesai,
+      // hapus sesi lokal supaya tidak muncul lagi.
+      if (rootStatus == 'finished') {
+        await _clearTouringSession();
+        return;
+      }
+
+      final savedCode =
+          prefs.getString(_prefTouringCode) ??
+              data['code']?.toString() ??
+              '';
+
+      final savedName =
+          prefs.getString(_prefTouringName) ??
+              data['name']?.toString() ??
+              'Touring';
+
+      final savedIsCaptain =
+          prefs.getBool(_prefIsCaptain) ??
+              false;
+
+      final savedMyName =
+          prefs.getString(_prefMyName) ??
+              (savedIsCaptain
+                  ? 'Road Captain'
+                  : 'Member');
+
+      final savedVehicle =
+          prefs.getString(_prefVehicleType) ??
+              'Motor';
+
+      final savedIsTouring =
+          prefs.getBool(_prefIsTouring) ??
+              false;
+
+      final startLat =
+          (data['startLat'] as num?)?.toDouble();
+
+      final startLng =
+          (data['startLng'] as num?)?.toDouble();
+
+      final destinationLat =
+          (data['destinationLat'] as num?)
+              ?.toDouble();
+
+      final destinationLng =
+          (data['destinationLng'] as num?)
+              ?.toDouble();
+
+      if (!mounted) return;
+
+      final shouldContinue =
+          await _showResumeTouringDialog(
+        touringName: savedName,
+        touringCode: savedCode,
+        isCaptain: savedIsCaptain,
+        isTouring: savedIsTouring,
+      );
+
+      if (!shouldContinue) {
+        // Tandai diri sebagai keluar dari sesi.
+        setState(() {
+          _activeTouringId = touringId;
+          _activeTouringCode = savedCode;
+          _activeTouringName = savedName;
+          _isCaptain = savedIsCaptain;
+          _myName = savedMyName;
+          _myVehicleType = savedVehicle;
+
+          _isMotorMode =
+              savedVehicle.toLowerCase() == 'motor' ||
+              savedVehicle.toLowerCase() == 'scooter';
+        });
+
+        await _saveMyMember(
+          status: 'Left',
+        );
+
+        await _clearTouringSession();
+
+        if (mounted) {
+          setState(() {
+            _activeTouringId = null;
+            _activeTouringCode = null;
+            _activeTouringName = null;
+            _isCaptain = false;
+            _isTouring = false;
+            _groupMembers.clear();
+          });
+        }
+
+        return;
+      }
+
+      setState(() {
+        _activeTouringId = touringId;
+        _activeTouringCode = savedCode;
+        _activeTouringName = savedName;
+        _isCaptain = savedIsCaptain;
+        _myName = savedMyName;
+        _myVehicleType = savedVehicle;
+        _isTouring = savedIsTouring;
+
+        _isMotorMode =
+            savedVehicle.toLowerCase() == 'motor' ||
+            savedVehicle.toLowerCase() == 'scooter';
+
+        if (startLat != null &&
+            startLng != null) {
+          _titikKumpul = LatLng(
+            startLat,
+            startLng,
+          );
+        }
+
+        if (destinationLat != null &&
+            destinationLng != null) {
+          _destinasi = LatLng(
+            destinationLat,
+            destinationLng,
+          );
+        }
+      });
+
+      _subscribeToTouringMembers(
+        touringId,
+      );
+
+      await _saveMyMember(
+        status: _isTouring
+            ? 'Riding'
+            : 'Joined',
+      );
+
+      if (_currentPosition != null) {
+        await _getRoadRoute(
+          fromCurrentLocation: _isTouring,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isTouring
+                  ? 'Touring sebelumnya dilanjutkan.'
+                  : 'Touring sebelumnya ditemukan.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'Restore touring session error: $e',
+      );
+    } finally {
+      _isRestoringSession = false;
+    }
+  }
+
+  // ==========================================================
+  // RESUME DIALOG
+  // ==========================================================
+
+  Future<bool> _showResumeTouringDialog({
+    required String touringName,
+    required String touringCode,
+    required bool isCaptain,
+    required bool isTouring,
+  }) async {
+    if (!mounted) {
+      return false;
+    }
+
+    final result =
+        await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(
+                Icons.restore,
+                color: Colors.blue,
+              ),
+              const SizedBox(
+                width: 10,
+              ),
+              const Expanded(
+                child: Text(
+                  'Touring Sebelumnya Ditemukan',
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                touringName.isEmpty
+                    ? 'Touring'
+                    : touringName,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+              const SizedBox(
+                height: 12,
+              ),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.confirmation_number,
+                    size: 18,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Text(
+                    'Kode: $touringCode',
+                  ),
+                ],
+              ),
+              const SizedBox(
+                height: 8,
+              ),
+              Row(
+                children: [
+                  Icon(
+                    isCaptain
+                        ? Icons
+                            .admin_panel_settings
+                        : Icons.person,
+                    size: 18,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Text(
+                    isCaptain
+                        ? 'Road Captain'
+                        : 'Anggota',
+                  ),
+                ],
+              ),
+              const SizedBox(
+                height: 8,
+              ),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.directions_car,
+                    size: 18,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Text(
+                    isTouring
+                        ? 'Status: Sedang Touring'
+                        : 'Status: Belum dimulai',
+                  ),
+                ],
+              ),
+              const SizedBox(
+                height: 18,
+              ),
+              const Text(
+                'Data touring masih tersimpan di perangkat ini.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child: const Text(
+                'Keluar dari Sesi',
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              icon: const Icon(
+                Icons.play_arrow,
+              ),
+              label: const Text(
+                'Lanjutkan Touring',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result == true;
   }
 
   // ==========================================================
@@ -227,15 +677,20 @@ class _MapScreenState extends State<MapScreen> {
       LocationPermission permission =
           await Geolocator.checkPermission();
 
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      if (permission ==
+          LocationPermission.denied) {
+        permission =
+            await Geolocator.requestPermission();
       }
 
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission ==
+              LocationPermission.denied ||
+          permission ==
+              LocationPermission.deniedForever) {
         if (mounted) {
           setState(() {
-            _gpsStatus = 'Izin GPS ditolak';
+            _gpsStatus =
+                'Izin GPS ditolak';
           });
         }
 
@@ -244,45 +699,59 @@ class _MapScreenState extends State<MapScreen> {
 
       final position =
           await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        desiredAccuracy:
+            LocationAccuracy.high,
       );
 
       _handlePosition(position);
 
       _positionStream =
           Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+        locationSettings:
+            const LocationSettings(
+          accuracy:
+              LocationAccuracy.high,
           distanceFilter: 5,
         ),
-      ).listen(_handlePosition);
+      ).listen(
+        _handlePosition,
+      );
 
       if (mounted) {
         setState(() {
-          _gpsStatus = 'GPS aktif';
+          _gpsStatus =
+              'GPS aktif';
           _locationReady = true;
         });
       }
     } catch (e) {
-      debugPrint('GPS error: $e');
+      debugPrint(
+        'GPS error: $e',
+      );
 
       if (mounted) {
         setState(() {
-          _gpsStatus = 'GPS error';
+          _gpsStatus =
+              'GPS error';
         });
       }
     }
   }
 
-  void _handlePosition(Position position) {
+  void _handlePosition(
+    Position position,
+  ) {
     if (!mounted) return;
 
-    if (position.heading >= 0 && position.speed > 1.0) {
-      _heading = position.heading;
+    if (position.heading >= 0 &&
+        position.speed > 1.0) {
+      _heading =
+          position.heading;
     }
 
     setState(() {
-      _currentPosition = position;
+      _currentPosition =
+          position;
 
       _distanceInKm =
           Geolocator.distanceBetween(
@@ -294,29 +763,40 @@ class _MapScreenState extends State<MapScreen> {
           1000;
 
       _estimatedMinutes =
-          (_distanceInKm / 40 * 60).round();
+          (_distanceInKm / 40 * 60)
+              .round();
 
-      _gpsStatus = 'GPS aktif';
-      _locationReady = true;
+      _gpsStatus =
+          'GPS aktif';
+
+      _locationReady =
+          true;
     });
 
-    if (_activeTouringId != null) {
-      _updateMyMemberLocation(position);
+    if (_activeTouringId !=
+        null) {
+      _updateMyMemberLocation(
+        position,
+      );
     }
 
     if (_isTouring) {
-      if (_lastRoutePosition == null) {
+      if (_lastRoutePosition ==
+          null) {
         _getRoadRoute();
       } else {
         final distance =
             Geolocator.distanceBetween(
-          _lastRoutePosition!.latitude,
-          _lastRoutePosition!.longitude,
+          _lastRoutePosition!
+              .latitude,
+          _lastRoutePosition!
+              .longitude,
           position.latitude,
           position.longitude,
         );
 
-        if (distance >= _rerouteDistanceMeters) {
+        if (distance >=
+            _rerouteDistanceMeters) {
           _getRoadRoute();
         }
       }
@@ -329,7 +809,9 @@ class _MapScreenState extends State<MapScreen> {
 
   void _centerMyLocation() {
     if (_currentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         const SnackBar(
           content: Text(
             'Lokasi GPS belum tersedia.',
@@ -361,7 +843,9 @@ class _MapScreenState extends State<MapScreen> {
     LatLng start;
 
     if (fromCurrentLocation) {
-      if (_currentPosition == null) return;
+      if (_currentPosition == null) {
+        return;
+      }
 
       start = LatLng(
         _currentPosition!.latitude,
@@ -373,7 +857,8 @@ class _MapScreenState extends State<MapScreen> {
 
     if (mounted) {
       setState(() {
-        _isLoadingRoute = true;
+        _isLoadingRoute =
+            true;
       });
     }
 
@@ -385,57 +870,79 @@ class _MapScreenState extends State<MapScreen> {
           '?overview=full&geometries=geojson';
 
       final response =
-          await http.get(Uri.parse(url));
+          await http.get(
+        Uri.parse(url),
+      );
 
-      if (response.statusCode != 200) {
+      if (response.statusCode !=
+          200) {
         throw Exception(
           'OSRM HTTP ${response.statusCode}',
         );
       }
 
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(
+        response.body,
+      );
 
-      final routes = data['routes'] as List?;
+      final routes =
+          data['routes'] as List?;
 
-      if (routes == null || routes.isEmpty) {
+      if (routes == null ||
+          routes.isEmpty) {
         throw Exception(
           'Route tidak ditemukan',
         );
       }
 
-      final route = routes.first;
+      final route =
+          routes.first;
 
       final coordinates =
-          route['geometry']['coordinates'] as List;
+          route['geometry']
+              ['coordinates'] as List;
 
-      final points = coordinates.map<LatLng>((item) {
-        return LatLng(
-          (item[1] as num).toDouble(),
-          (item[0] as num).toDouble(),
-        );
-      }).toList();
+      final points =
+          coordinates.map<LatLng>(
+        (item) {
+          return LatLng(
+            (item[1] as num)
+                .toDouble(),
+            (item[0] as num)
+                .toDouble(),
+          );
+        },
+      ).toList();
 
       final distanceMeters =
-          (route['distance'] as num).toDouble();
+          (route['distance'] as num)
+              .toDouble();
 
       final durationSeconds =
-          (route['duration'] as num).toDouble();
+          (route['duration'] as num)
+              .toDouble();
 
       if (fromCurrentLocation) {
-        _lastRoutePosition = _currentPosition;
+        _lastRoutePosition =
+            _currentPosition;
       }
 
       if (mounted) {
         setState(() {
-          _routePoints = points;
+          _routePoints =
+              points;
 
           _routeDistanceKm =
-              distanceMeters / 1000;
+              distanceMeters /
+                  1000;
 
           _routeDurationMinutes =
-              durationSeconds / 60;
+              durationSeconds /
+                  60;
 
-          _isLoadingRoute = false;
+          _isLoadingRoute =
+              false;
         });
       }
     } catch (e) {
@@ -445,19 +952,36 @@ class _MapScreenState extends State<MapScreen> {
 
       if (mounted) {
         setState(() {
-          _isLoadingRoute = false;
+          _isLoadingRoute =
+              false;
         });
       }
     }
   }
-  
-    // ==========================================================
+
+  // ==========================================================
   // START TOURING
   // ==========================================================
 
   Future<void> _startTouring() async {
+    if (_activeTouringId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Buat atau join touring terlebih dahulu.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
     if (_currentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         const SnackBar(
           content: Text(
             'Lokasi GPS belum tersedia.',
@@ -470,22 +994,49 @@ class _MapScreenState extends State<MapScreen> {
 
     setState(() {
       _isTouring = true;
-      _touringStartTime = DateTime.now();
+      _touringStartTime =
+          DateTime.now();
     });
 
-    // Buat route dari posisi GPS sekarang
-    // menuju destinasi.
+    // Captain mengubah status group menjadi active.
+    if (_isCaptain &&
+        _activeTouringId != null) {
+      try {
+        await _firestore
+            .collection('tourings')
+            .doc(_activeTouringId)
+            .set(
+          {
+            'status': 'active',
+            'startedAt':
+                FieldValue
+                    .serverTimestamp(),
+          },
+          SetOptions(
+            merge: true,
+          ),
+        );
+      } catch (e) {
+        debugPrint(
+          'Update touring active error: $e',
+        );
+      }
+    }
+
     await _getRoadRoute(
       fromCurrentLocation: true,
     );
 
-    // Simpan status anggota sebagai Riding.
     await _saveMyMember(
       status: 'Riding',
     );
 
+    await _saveTouringSession();
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         const SnackBar(
           content: Text(
             'Touring dimulai',
@@ -504,18 +1055,248 @@ class _MapScreenState extends State<MapScreen> {
       _isTouring = false;
     });
 
-    // Simpan status anggota sebagai Stopped.
     await _saveMyMember(
       status: 'Stopped',
     );
 
+    await _saveTouringSession();
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         const SnackBar(
           content: Text(
-            'Touring dihentikan',
+            'Touring dihentikan sementara',
           ),
         ),
+      );
+    }
+  }
+
+  // ==========================================================
+  // FINISH TOURING
+  // ==========================================================
+
+  Future<void> _finishTouring() async {
+    final touringId =
+        _activeTouringId;
+
+    if (touringId == null) {
+      return;
+    }
+
+    final confirmed =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Selesaikan Touring?',
+          ),
+          content: const Text(
+            'Touring akan ditandai sebagai selesai. '
+            'Setelah selesai, sesi ini tidak akan ditawarkan lagi '
+            'saat aplikasi dibuka.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child:
+                  const Text('Batal'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              icon: const Icon(
+                Icons.flag,
+              ),
+              label:
+                  const Text(
+                'Selesaikan',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      setState(() {
+        _isTouring = false;
+      });
+
+      await _saveMyMember(
+        status: 'Finished',
+      );
+
+      if (_isCaptain) {
+        await _firestore
+            .collection('tourings')
+            .doc(touringId)
+            .set(
+          {
+            'status': 'finished',
+            'finishedAt':
+                FieldValue
+                    .serverTimestamp(),
+          },
+          SetOptions(
+            merge: true,
+          ),
+        );
+      }
+
+      await _clearTouringSession();
+
+      await _membersSubscription
+          ?.cancel();
+
+      if (mounted) {
+        setState(() {
+          _activeTouringId =
+              null;
+          _activeTouringCode =
+              null;
+          _activeTouringName =
+              null;
+          _isCaptain = false;
+          _isTouring = false;
+          _groupMembers.clear();
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Touring telah diselesaikan.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'Finish touring error: $e',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal menyelesaikan touring: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // ==========================================================
+  // LEAVE TOURING - MEMBER
+  // ==========================================================
+
+  Future<void> _leaveTouring() async {
+    final touringId =
+        _activeTouringId;
+
+    if (touringId == null) {
+      return;
+    }
+
+    final confirmed =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Keluar dari Touring?',
+          ),
+          content: const Text(
+            'Anda akan keluar dari sesi touring di perangkat ini. '
+            'Touring tetap berjalan untuk anggota lainnya.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  false,
+                );
+              },
+              child:
+                  const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  true,
+                );
+              },
+              child:
+                  const Text('Keluar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _saveMyMember(
+        status: 'Left',
+      );
+
+      await _clearTouringSession();
+
+      await _membersSubscription
+          ?.cancel();
+
+      if (mounted) {
+        setState(() {
+          _activeTouringId =
+              null;
+          _activeTouringCode =
+              null;
+          _activeTouringName =
+              null;
+          _isCaptain = false;
+          _isTouring = false;
+          _groupMembers.clear();
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Anda telah keluar dari touring.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'Leave touring error: $e',
       );
     }
   }
@@ -527,7 +1308,8 @@ class _MapScreenState extends State<MapScreen> {
   Future<List<Map<String, dynamic>>> _searchPlaces(
     String query,
   ) async {
-    final trimmed = query.trim();
+    final trimmed =
+        query.trim();
 
     if (trimmed.isEmpty) {
       return [];
@@ -546,7 +1328,8 @@ class _MapScreenState extends State<MapScreen> {
       },
     );
 
-    final response = await http.get(
+    final response =
+        await http.get(
       uri,
       headers: const {
         'User-Agent':
@@ -556,7 +1339,8 @@ class _MapScreenState extends State<MapScreen> {
       },
     );
 
-    if (response.statusCode != 200) {
+    if (response.statusCode !=
+        200) {
       throw Exception(
         'Pencarian tempat gagal '
         '(HTTP ${response.statusCode})',
@@ -564,7 +1348,9 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final decoded =
-        jsonDecode(response.body);
+        jsonDecode(
+      response.body,
+    );
 
     if (decoded is! List) {
       return [];
@@ -573,7 +1359,10 @@ class _MapScreenState extends State<MapScreen> {
     return decoded
         .whereType<Map>()
         .map<Map<String, dynamic>>(
-          (item) => Map<String, dynamic>.from(item),
+          (item) =>
+              Map<String, dynamic>.from(
+            item,
+          ),
         )
         .toList();
   }
@@ -588,7 +1377,8 @@ class _MapScreenState extends State<MapScreen> {
     final controller =
         TextEditingController();
 
-    List<Map<String, dynamic>> results = [];
+    List<Map<String, dynamic>>
+        results = [];
 
     bool isSearching = false;
 
@@ -623,13 +1413,15 @@ class _MapScreenState extends State<MapScreen> {
                   setDialogState(() {
                     results =
                         searchResults;
-                    isSearching = false;
+                    isSearching =
+                        false;
                   });
                 }
               } catch (e) {
                 if (context.mounted) {
                   setDialogState(() {
-                    isSearching = false;
+                    isSearching =
+                        false;
                   });
 
                   ScaffoldMessenger.of(
@@ -670,7 +1462,8 @@ class _MapScreenState extends State<MapScreen> {
                 ],
               ),
               content: SizedBox(
-                width: double.maxFinite,
+                width:
+                    double.maxFinite,
                 height: 420,
                 child: Column(
                   children: [
@@ -730,7 +1523,8 @@ class _MapScreenState extends State<MapScreen> {
                       )
                     else
                       Expanded(
-                        child: ListView.separated(
+                        child:
+                            ListView.separated(
                           itemCount:
                               results.length,
                           separatorBuilder:
@@ -876,41 +1670,47 @@ class _MapScreenState extends State<MapScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
+          title:
+              const Text(
             'Atur Rute',
           ),
-          content: SingleChildScrollView(
+          content:
+              SingleChildScrollView(
             child: Column(
               mainAxisSize:
                   MainAxisSize.min,
               children: [
-                // ==================================================
-                // TITIK KUMPUL
-                // ==================================================
-
                 ListTile(
-                  leading: const Icon(
+                  leading:
+                      const Icon(
                     Icons.location_on,
-                    color: Colors.green,
+                    color:
+                        Colors.green,
                   ),
-                  title: const Text(
+                  title:
+                      const Text(
                     'Titik Kumpul',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontWeight:
                           FontWeight.bold,
                     ),
                   ),
-                  subtitle: Text(
+                  subtitle:
+                      Text(
                     '${_titikKumpul.latitude.toStringAsFixed(6)}, '
                     '${_titikKumpul.longitude.toStringAsFixed(6)}',
                   ),
-                  trailing: IconButton(
+                  trailing:
+                      IconButton(
                     tooltip:
                         'Cari tempat',
-                    icon: const Icon(
+                    icon:
+                        const Icon(
                       Icons.search,
                     ),
-                    onPressed: () {
+                    onPressed:
+                        () {
                       Navigator.pop(
                         context,
                       );
@@ -936,43 +1736,46 @@ class _MapScreenState extends State<MapScreen> {
                       context,
                     ).showSnackBar(
                       const SnackBar(
-                        content: Text(
+                        content:
+                            Text(
                           'Tap map untuk memilih titik kumpul.',
                         ),
                       ),
                     );
                   },
                 ),
-
                 const Divider(),
-
-                // ==================================================
-                // DESTINASI
-                // ==================================================
-
                 ListTile(
-                  leading: const Icon(
+                  leading:
+                      const Icon(
                     Icons.flag,
-                    color: Colors.red,
+                    color:
+                        Colors.red,
                   ),
-                  title: const Text(
+                  title:
+                      const Text(
                     'Destinasi',
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontWeight:
                           FontWeight.bold,
                     ),
                   ),
-                  subtitle: Text(
+                  subtitle:
+                      Text(
                     '${_destinasi.latitude.toStringAsFixed(6)}, '
                     '${_destinasi.longitude.toStringAsFixed(6)}',
                   ),
-                  trailing: IconButton(
+                  trailing:
+                      IconButton(
                     tooltip:
                         'Cari tempat',
-                    icon: const Icon(
+                    icon:
+                        const Icon(
                       Icons.search,
                     ),
-                    onPressed: () {
+                    onPressed:
+                        () {
                       Navigator.pop(
                         context,
                       );
@@ -998,26 +1801,23 @@ class _MapScreenState extends State<MapScreen> {
                       context,
                     ).showSnackBar(
                       const SnackBar(
-                        content: Text(
+                        content:
+                            Text(
                           'Tap map untuk memilih destinasi.',
                         ),
                       ),
                     );
                   },
                 ),
-
                 const SizedBox(
                   height: 12,
                 ),
-
-                // ==================================================
-                // GUNAKAN LOKASI SAYA
-                // ==================================================
-
                 SizedBox(
-                  width: double.infinity,
+                  width:
+                      double.infinity,
                   child:
-                      ElevatedButton.icon(
+                      ElevatedButton
+                          .icon(
                     onPressed: () {
                       Navigator.pop(
                         context,
@@ -1044,31 +1844,33 @@ class _MapScreenState extends State<MapScreen> {
                           context,
                         ).showSnackBar(
                           const SnackBar(
-                            content: Text(
+                            content:
+                                Text(
                               'Lokasi GPS belum tersedia.',
                             ),
                           ),
                         );
                       }
                     },
-                    icon: const Icon(
+                    icon:
+                        const Icon(
                       Icons.my_location,
                     ),
-                    label: const Text(
+                    label:
+                        const Text(
                       'Gunakan Lokasi Saya sebagai Titik Kumpul',
                     ),
                   ),
                 ),
-
                 const SizedBox(
                   height: 8,
                 ),
-
                 const Text(
                   'Tip: tekan ikon 🔍 untuk mencari tempat berdasarkan nama.',
                   textAlign:
                       TextAlign.center,
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     fontSize: 12,
                     color:
                         Colors.grey,
@@ -1090,24 +1892,35 @@ class _MapScreenState extends State<MapScreen> {
     TapPosition tapPosition,
     LatLng point,
   ) {
-    if (!_mapPickingMode) return;
+    if (!_mapPickingMode) {
+      return;
+    }
 
-    if (_pickingTarget == 'start') {
+    if (_pickingTarget ==
+        'start') {
       setState(() {
-        _titikKumpul = point;
-        _mapPickingMode = false;
-        _pickingTarget = '';
+        _titikKumpul =
+            point;
+        _mapPickingMode =
+            false;
+        _pickingTarget =
+            '';
       });
-    } else if (_pickingTarget == 'destination') {
+    } else if (_pickingTarget ==
+        'destination') {
       setState(() {
-        _destinasi = point;
-        _mapPickingMode = false;
-        _pickingTarget = '';
+        _destinasi =
+            point;
+        _mapPickingMode =
+            false;
+        _pickingTarget =
+            '';
       });
     }
 
     _getRoadRoute(
-      fromCurrentLocation: _isTouring,
+      fromCurrentLocation:
+          _isTouring,
     );
   }
 
@@ -1123,11 +1936,14 @@ class _MapScreenState extends State<MapScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
+          title:
+              const Text(
             'Buat Touring',
           ),
-          content: TextField(
-            controller: nameController,
+          content:
+              TextField(
+            controller:
+                nameController,
             decoration:
                 const InputDecoration(
               labelText:
@@ -1146,7 +1962,9 @@ class _MapScreenState extends State<MapScreen> {
                 );
               },
               child:
-                  const Text('Batal'),
+                  const Text(
+                'Batal',
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1155,7 +1973,9 @@ class _MapScreenState extends State<MapScreen> {
                         .text
                         .trim();
 
-                if (name.isEmpty) return;
+                if (name.isEmpty) {
+                  return;
+                }
 
                 Navigator.pop(
                   context,
@@ -1166,7 +1986,9 @@ class _MapScreenState extends State<MapScreen> {
                 );
               },
               child:
-                  const Text('Buat'),
+                  const Text(
+                'Buat',
+              ),
             ),
           ],
         );
@@ -1196,7 +2018,8 @@ class _MapScreenState extends State<MapScreen> {
       final code =
           await service.createTouring(
         name: name,
-        captainId: user.uid,
+        captainId:
+            user.uid,
         captainName:
             'Road Captain',
         startLat:
@@ -1211,7 +2034,9 @@ class _MapScreenState extends State<MapScreen> {
 
       final query =
           await _firestore
-              .collection('tourings')
+              .collection(
+                'tourings',
+              )
               .where(
                 'code',
                 isEqualTo: code,
@@ -1248,6 +2073,9 @@ class _MapScreenState extends State<MapScreen> {
                 ? 'Motor'
                 : 'SUV';
       });
+
+      // SIMPAN SESI LOKAL
+      await _saveTouringSession();
 
       await _saveMyMember(
         status: 'Joined',
@@ -1290,13 +2118,16 @@ class _MapScreenState extends State<MapScreen> {
   ) async {
     await showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible:
+          false,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
+          title:
+              const Text(
             'Touring Berhasil Dibuat',
           ),
-          content: Column(
+          content:
+              Column(
             mainAxisSize:
                 MainAxisSize.min,
             children: [
@@ -1325,7 +2156,8 @@ class _MapScreenState extends State<MapScreen> {
                   fontSize: 32,
                   fontWeight:
                       FontWeight.bold,
-                  letterSpacing: 5,
+                  letterSpacing:
+                      5,
                 ),
               ),
               const SizedBox(
@@ -1340,30 +2172,37 @@ class _MapScreenState extends State<MapScreen> {
           ),
           actions: [
             TextButton.icon(
-              onPressed: () async {
+              onPressed:
+                  () async {
                 await Clipboard.setData(
                   ClipboardData(
                     text: code,
                   ),
                 );
 
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
+                if (context
+                    .mounted) {
+                  ScaffoldMessenger
+                      .of(
                     context,
                   ).showSnackBar(
                     const SnackBar(
-                      content: Text(
+                      content:
+                          Text(
                         'Kode berhasil disalin.',
                       ),
                     ),
                   );
                 }
               },
-              icon: const Icon(
+              icon:
+                  const Icon(
                 Icons.copy,
               ),
               label:
-                  const Text('Copy'),
+                  const Text(
+                'Copy',
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1372,7 +2211,9 @@ class _MapScreenState extends State<MapScreen> {
                 );
               },
               child:
-                  const Text('OK'),
+                  const Text(
+                'OK',
+              ),
             ),
           ],
         );
@@ -1403,12 +2244,14 @@ class _MapScreenState extends State<MapScreen> {
             setDialogState,
           ) {
             return AlertDialog(
-              title: const Text(
+              title:
+                  const Text(
                 'Join Touring',
               ),
               content:
                   SingleChildScrollView(
-                child: Column(
+                child:
+                    Column(
                   mainAxisSize:
                       MainAxisSize.min,
                   children: [
@@ -1467,46 +2310,71 @@ class _MapScreenState extends State<MapScreen> {
                         border:
                             OutlineInputBorder(),
                       ),
-                      items: const [
+                      items:
+                          const [
                         DropdownMenuItem(
-                          value: 'Motor',
+                          value:
+                              'Motor',
                           child:
-                              Text('Motor'),
+                              Text(
+                            'Motor',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'Scooter',
+                          value:
+                              'Scooter',
                           child:
-                              Text('Scooter'),
+                              Text(
+                            'Scooter',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'Mobil',
+                          value:
+                              'Mobil',
                           child:
-                              Text('Mobil'),
+                              Text(
+                            'Mobil',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'SUV',
+                          value:
+                              'SUV',
                           child:
-                              Text('SUV'),
+                              Text(
+                            'SUV',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'Truck',
+                          value:
+                              'Truck',
                           child:
-                              Text('Truck'),
+                              Text(
+                            'Truck',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'Van',
+                          value:
+                              'Van',
                           child:
-                              Text('Van'),
+                              Text(
+                            'Van',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'Taxi',
+                          value:
+                              'Taxi',
                           child:
-                              Text('Taxi'),
+                              Text(
+                            'Taxi',
+                          ),
                         ),
                         DropdownMenuItem(
-                          value: 'Sepeda',
+                          value:
+                              'Sepeda',
                           child:
-                              Text('Sepeda'),
+                              Text(
+                            'Sepeda',
+                          ),
                         ),
                       ],
                       onChanged:
@@ -1527,7 +2395,8 @@ class _MapScreenState extends State<MapScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
+                  onPressed:
+                      () {
                     Navigator.pop(
                       context,
                     );
@@ -1538,7 +2407,8 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () async {
+                  onPressed:
+                      () async {
                     final code =
                         codeController
                             .text
@@ -1552,11 +2422,13 @@ class _MapScreenState extends State<MapScreen> {
 
                     if (code.isEmpty ||
                         name.isEmpty) {
-                      ScaffoldMessenger.of(
+                      ScaffoldMessenger
+                          .of(
                         context,
                       ).showSnackBar(
                         const SnackBar(
-                          content: Text(
+                          content:
+                              Text(
                             'Kode dan nama harus diisi.',
                           ),
                         ),
@@ -1576,11 +2448,14 @@ class _MapScreenState extends State<MapScreen> {
                           selectedVehicle,
                     );
                   },
-                  icon: const Icon(
+                  icon:
+                      const Icon(
                     Icons.login,
                   ),
                   label:
-                      const Text('Join'),
+                      const Text(
+                    'Join',
+                  ),
                 ),
               ],
             );
@@ -1611,7 +2486,9 @@ class _MapScreenState extends State<MapScreen> {
 
       final query =
           await _firestore
-              .collection('tourings')
+              .collection(
+                'tourings',
+              )
               .where(
                 'code',
                 isEqualTo: code,
@@ -1641,21 +2518,44 @@ class _MapScreenState extends State<MapScreen> {
       final data =
           touringDoc.data();
 
+      // Jangan join touring yang sudah selesai.
+      if (data['status']
+              ?.toString() ==
+          'finished') {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Touring ini sudah selesai.',
+              ),
+            ),
+          );
+        }
+
+        return;
+      }
+
       final startLat =
-          (data['startLat'] as num?)
+          (data['startLat']
+                  as num?)
               ?.toDouble();
 
       final startLng =
-          (data['startLng'] as num?)
+          (data['startLng']
+                  as num?)
               ?.toDouble();
 
       final destinationLat =
-          (data['destinationLat']
+          (data[
+                      'destinationLat']
                   as num?)
               ?.toDouble();
 
       final destinationLng =
-          (data['destinationLng']
+          (data[
+                      'destinationLng']
                   as num?)
               ?.toDouble();
 
@@ -1664,24 +2564,32 @@ class _MapScreenState extends State<MapScreen> {
             touringDoc.id;
 
         _activeTouringCode =
-            data['code']?.toString();
+            data['code']
+                ?.toString();
 
         _activeTouringName =
-            data['name']?.toString();
+            data['name']
+                ?.toString();
 
-        _isCaptain = false;
+        _isCaptain =
+            false;
 
-        _myName = name;
+        _myName =
+            name;
 
         _myVehicleType =
             vehicleType;
 
         _isMotorMode =
-            vehicleType == 'Motor' ||
-            vehicleType == 'Scooter';
+            vehicleType ==
+                    'Motor' ||
+                vehicleType ==
+                    'Scooter';
 
-        if (startLat != null &&
-            startLng != null) {
+        if (startLat !=
+                null &&
+            startLng !=
+                null) {
           _titikKumpul =
               LatLng(
             startLat,
@@ -1689,8 +2597,10 @@ class _MapScreenState extends State<MapScreen> {
           );
         }
 
-        if (destinationLat != null &&
-            destinationLng != null) {
+        if (destinationLat !=
+                null &&
+            destinationLng !=
+                null) {
           _destinasi =
               LatLng(
             destinationLat,
@@ -1698,6 +2608,9 @@ class _MapScreenState extends State<MapScreen> {
           );
         }
       });
+
+      // SIMPAN SESI LOKAL
+      await _saveTouringSession();
 
       await _saveMyMember(
         status: 'Joined',
@@ -1707,7 +2620,8 @@ class _MapScreenState extends State<MapScreen> {
         touringDoc.id,
       );
 
-      if (_currentPosition != null) {
+      if (_currentPosition !=
+          null) {
         await _getRoadRoute(
           fromCurrentLocation:
               _isTouring,
@@ -1719,7 +2633,8 @@ class _MapScreenState extends State<MapScreen> {
           context,
         ).showSnackBar(
           SnackBar(
-            content: Text(
+            content:
+                Text(
               'Berhasil join ${data['name'] ?? 'Touring'}',
             ),
           ),
@@ -1768,25 +2683,40 @@ class _MapScreenState extends State<MapScreen> {
           _currentPosition;
 
       await _firestore
-          .collection('tourings')
-          .doc(touringId)
-          .collection('members')
-          .doc(user.uid)
+          .collection(
+            'tourings',
+          )
+          .doc(
+            touringId,
+          )
+          .collection(
+            'members',
+          )
+          .doc(
+            user.uid,
+          )
           .set(
         {
-          'userId': user.uid,
-          'name': _myName,
-          'lat': position?.latitude,
-          'lng': position?.longitude,
-          'heading': _heading,
+          'userId':
+              user.uid,
+          'name':
+              _myName,
+          'lat':
+              position?.latitude,
+          'lng':
+              position?.longitude,
+          'heading':
+              _heading,
           'vehicleType':
               _myVehicleType,
-          'status': status ??
-              (_isTouring
-                  ? 'Riding'
-                  : 'Joined'),
+          'status':
+              status ??
+                  (_isTouring
+                      ? 'Riding'
+                      : 'Joined'),
           'updatedAt':
-              FieldValue.serverTimestamp(),
+              FieldValue
+                  .serverTimestamp(),
         },
         SetOptions(
           merge: true,
@@ -1821,7 +2751,8 @@ class _MapScreenState extends State<MapScreen> {
     final now =
         DateTime.now();
 
-    if (_lastMemberUpload != null &&
+    if (_lastMemberUpload !=
+            null &&
         now.difference(
               _lastMemberUpload!,
             ) <
@@ -1831,28 +2762,44 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    _lastMemberUpload = now;
+    _lastMemberUpload =
+        now;
 
     try {
       await _firestore
-          .collection('tourings')
-          .doc(touringId)
-          .collection('members')
-          .doc(user.uid)
+          .collection(
+            'tourings',
+          )
+          .doc(
+            touringId,
+          )
+          .collection(
+            'members',
+          )
+          .doc(
+            user.uid,
+          )
           .set(
         {
-          'userId': user.uid,
-          'name': _myName,
-          'lat': position.latitude,
-          'lng': position.longitude,
-          'heading': _heading,
+          'userId':
+              user.uid,
+          'name':
+              _myName,
+          'lat':
+              position.latitude,
+          'lng':
+              position.longitude,
+          'heading':
+              _heading,
           'vehicleType':
               _myVehicleType,
-          'status': _isTouring
-              ? 'Riding'
-              : 'Joined',
+          'status':
+              _isTouring
+                  ? 'Riding'
+                  : 'Joined',
           'updatedAt':
-              FieldValue.serverTimestamp(),
+              FieldValue
+                  .serverTimestamp(),
         },
         SetOptions(
           merge: true,
@@ -1876,9 +2823,15 @@ class _MapScreenState extends State<MapScreen> {
 
     _membersSubscription =
         _firestore
-            .collection('tourings')
-            .doc(touringId)
-            .collection('members')
+            .collection(
+              'tourings',
+            )
+            .doc(
+              touringId,
+            )
+            .collection(
+              'members',
+            )
             .snapshots()
             .listen(
       (snapshot) {
@@ -1895,7 +2848,8 @@ class _MapScreenState extends State<MapScreen> {
               doc.data();
 
           if (user != null &&
-              doc.id == user.uid) {
+              doc.id ==
+                  user.uid) {
             continue;
           }
 
@@ -1911,7 +2865,8 @@ class _MapScreenState extends State<MapScreen> {
           }
 
           final heading =
-              (data['heading'] as num?)
+              (data['heading']
+                          as num?)
                       ?.toDouble() ??
                   0;
 
@@ -1932,13 +2887,17 @@ class _MapScreenState extends State<MapScreen> {
 
           members.add(
             Member(
-              id: doc.id,
-              name: name,
-              location: LatLng(
+              id:
+                  doc.id,
+              name:
+                  name,
+              location:
+                  LatLng(
                 lat.toDouble(),
                 lng.toDouble(),
               ),
-              status: status,
+              status:
+                  status,
               color:
                   _memberColor(
                 doc.id,
@@ -1994,11 +2953,13 @@ class _MapScreenState extends State<MapScreen> {
         previous,
         element,
       ) =>
-          previous + element,
+          previous +
+          element,
     );
 
     return colors[
-        value % colors.length];
+        value %
+            colors.length];
   }
 
   // ==========================================================
@@ -2011,8 +2972,10 @@ class _MapScreenState extends State<MapScreen> {
     final type =
         vehicleType.toLowerCase();
 
-    if (type == 'motor' ||
-        type == 'scooter') {
+    if (type ==
+            'motor' ||
+        type ==
+            'scooter') {
       return 'assets/metic.png';
     }
 
@@ -2028,25 +2991,32 @@ class _MapScreenState extends State<MapScreen> {
       context: context,
       backgroundColor:
           Colors.grey[900],
-      isScrollControlled: true,
+      isScrollControlled:
+          true,
       builder: (context) {
         final ownCount =
-            _activeTouringId != null
+            _activeTouringId !=
+                    null
                 ? 1
                 : 0;
 
         final total =
-            _groupMembers.length +
+            _groupMembers
+                    .length +
                 ownCount;
 
         return SafeArea(
-          child: SizedBox(
+          child:
+              SizedBox(
             height:
-                MediaQuery.of(context)
+                MediaQuery.of(
+                      context,
+                    )
                         .size
                         .height *
                     0.65,
-            child: Column(
+            child:
+                Column(
               children: [
                 const SizedBox(
                   height: 10,
@@ -2059,7 +3029,8 @@ class _MapScreenState extends State<MapScreen> {
                     color:
                         Colors.grey[600],
                     borderRadius:
-                        BorderRadius.circular(
+                        BorderRadius
+                            .circular(
                       10,
                     ),
                   ),
@@ -2071,9 +3042,11 @@ class _MapScreenState extends State<MapScreen> {
                   padding:
                       const EdgeInsets
                           .symmetric(
-                    horizontal: 20,
+                    horizontal:
+                        20,
                   ),
-                  child: Row(
+                  child:
+                      Row(
                     children: [
                       const Icon(
                         Icons.groups,
@@ -2085,29 +3058,35 @@ class _MapScreenState extends State<MapScreen> {
                         'Anggota Touring ($total)',
                         style:
                             const TextStyle(
-                          fontSize: 20,
+                          fontSize:
+                              20,
                           fontWeight:
-                              FontWeight.bold,
+                              FontWeight
+                                  .bold,
                         ),
                       ),
                     ],
                   ),
                 ),
                 const Divider(),
+
                 if (_activeTouringId ==
                     null)
                   Expanded(
-                    child: Center(
-                      child: Column(
+                    child:
+                        Center(
+                      child:
+                          Column(
                         mainAxisSize:
-                            MainAxisSize.min,
+                            MainAxisSize
+                                .min,
                         children: [
                           Icon(
                             Icons
                                 .groups_outlined,
                             size: 70,
-                            color:
-                                Colors.grey[600],
+                            color: Colors
+                                .grey[600],
                           ),
                           const SizedBox(
                             height: 15,
@@ -2120,14 +3099,16 @@ class _MapScreenState extends State<MapScreen> {
                           ),
                           ElevatedButton
                               .icon(
-                            onPressed: () {
+                            onPressed:
+                                () {
                               Navigator.pop(
                                 context,
                               );
 
                               _showJoinTouringDialog();
                             },
-                            icon: const Icon(
+                            icon:
+                                const Icon(
                               Icons.login,
                             ),
                             label:
@@ -2141,20 +3122,100 @@ class _MapScreenState extends State<MapScreen> {
                   )
                 else
                   Expanded(
-                    child: ListView(
+                    child:
+                        ListView(
                       children: [
+                        // ==================================================
+                        // CONTROL TOURING
+                        // ==================================================
+
+                        Padding(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal:
+                                16,
+                            vertical:
+                                8,
+                          ),
+                          child:
+                              _isCaptain
+                                  ? SizedBox(
+                                      width:
+                                          double.infinity,
+                                      child:
+                                          OutlinedButton.icon(
+                                        style:
+                                            OutlinedButton.styleFrom(
+                                          foregroundColor:
+                                              Colors.redAccent,
+                                          side:
+                                              const BorderSide(
+                                            color:
+                                                Colors.redAccent,
+                                          ),
+                                        ),
+                                        onPressed:
+                                            _finishTouring,
+                                        icon:
+                                            const Icon(
+                                          Icons.flag,
+                                        ),
+                                        label:
+                                            const Text(
+                                          'Selesaikan Touring',
+                                        ),
+                                      ),
+                                    )
+                                  : SizedBox(
+                                      width:
+                                          double.infinity,
+                                      child:
+                                          OutlinedButton.icon(
+                                        style:
+                                            OutlinedButton.styleFrom(
+                                          foregroundColor:
+                                              Colors.orangeAccent,
+                                          side:
+                                              const BorderSide(
+                                            color:
+                                                Colors.orangeAccent,
+                                          ),
+                                        ),
+                                        onPressed:
+                                            _leaveTouring,
+                                        icon:
+                                            const Icon(
+                                          Icons.logout,
+                                        ),
+                                        label:
+                                            const Text(
+                                          'Keluar dari Touring',
+                                        ),
+                                      ),
+                                    ),
+                        ),
+
+                        const Divider(),
+
+                        // ==================================================
+                        // SAYA
+                        // ==================================================
+
                         ListTile(
                           leading:
                               const CircleAvatar(
                             backgroundColor:
                                 Colors.green,
-                            child: Icon(
+                            child:
+                                Icon(
                               Icons.person,
                               color:
                                   Colors.white,
                             ),
                           ),
-                          title: Text(
+                          title:
+                              Text(
                             '$_myName (Saya)',
                             style:
                                 const TextStyle(
@@ -2177,16 +3238,25 @@ class _MapScreenState extends State<MapScreen> {
                                     )
                                   : null,
                         ),
+
                         const Divider(),
+
+                        // ==================================================
+                        // MEMBER LAIN
+                        // ==================================================
+
                         if (_groupMembers
                             .isEmpty)
                           const Padding(
                             padding:
-                                EdgeInsets.all(
+                                EdgeInsets
+                                    .all(
                               30,
                             ),
-                            child: Center(
-                              child: Text(
+                            child:
+                                Center(
+                              child:
+                                  Text(
                                 'Belum ada anggota lain.',
                               ),
                             ),
@@ -2225,8 +3295,7 @@ class _MapScreenState extends State<MapScreen> {
                                           math.pi /
                                           180,
                                   alignment:
-                                      Alignment
-                                          .center,
+                                      Alignment.center,
                                   child:
                                       Image.asset(
                                     _vehicleAsset(
@@ -2236,8 +3305,8 @@ class _MapScreenState extends State<MapScreen> {
                                         40,
                                     height:
                                         40,
-                                    fit: BoxFit
-                                        .contain,
+                                    fit:
+                                        BoxFit.contain,
                                   ),
                                 ),
                               );
@@ -2286,7 +3355,8 @@ class _MapScreenState extends State<MapScreen> {
 
       await engine.initialize(
         const RtcEngineContext(
-          appId: agoraAppId,
+          appId:
+              agoraAppId,
         ),
       );
 
@@ -2297,7 +3367,8 @@ class _MapScreenState extends State<MapScreen> {
         true,
       );
 
-      await engine.setChannelProfile(
+      await engine
+          .setChannelProfile(
         ChannelProfileType
             .channelProfileCommunication,
       );
@@ -2309,7 +3380,8 @@ class _MapScreenState extends State<MapScreen> {
 
       engine.registerEventHandler(
         RtcEngineEventHandler(
-          onJoinChannelSuccess: (
+          onJoinChannelSuccess:
+              (
             connection,
             elapsed,
           ) {
@@ -2318,7 +3390,8 @@ class _MapScreenState extends State<MapScreen> {
               '${connection.channelId}',
             );
           },
-          onError: (
+          onError:
+              (
             err,
             msg,
           ) {
@@ -2330,11 +3403,13 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
 
-      _engine = engine;
+      _engine =
+          engine;
 
       await engine.joinChannel(
         token: '',
-        channelId: channelName,
+        channelId:
+            channelName,
         uid: 0,
         options:
             const ChannelMediaOptions(),
@@ -2382,7 +3457,8 @@ class _MapScreenState extends State<MapScreen> {
 
       if (mounted) {
         setState(() {
-          _isTalking = true;
+          _isTalking =
+              true;
         });
       }
     } catch (e) {
@@ -2410,7 +3486,8 @@ class _MapScreenState extends State<MapScreen> {
 
       if (mounted) {
         setState(() {
-          _isTalking = false;
+          _isTalking =
+              false;
         });
       }
     } catch (e) {
@@ -2428,9 +3505,11 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     _positionStream?.cancel();
 
-    _membersSubscription?.cancel();
+    _membersSubscription
+        ?.cancel();
 
-    _engine?.leaveChannel();
+    _engine
+        ?.leaveChannel();
 
     _engine?.release();
 
@@ -2446,15 +3525,22 @@ class _MapScreenState extends State<MapScreen> {
     BuildContext context,
   ) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
+      appBar:
+          AppBar(
+        title:
+            const Text(
           'Touring Map',
         ),
         actions: [
+          // ==================================================
           // CREATE TOURING
+          // ==================================================
+
           IconButton(
-            icon: const Icon(
-              Icons.add_circle_outline,
+            icon:
+                const Icon(
+              Icons
+                  .add_circle_outline,
             ),
             tooltip:
                 'Buat Touring',
@@ -2462,9 +3548,13 @@ class _MapScreenState extends State<MapScreen> {
                 _showCreateTouringDialog,
           ),
 
+          // ==================================================
           // ROUTE
+          // ==================================================
+
           IconButton(
-            icon: const Icon(
+            icon:
+                const Icon(
               Icons.route,
             ),
             tooltip:
@@ -2473,9 +3563,13 @@ class _MapScreenState extends State<MapScreen> {
                 _showSetRouteDialog,
           ),
 
+          // ==================================================
           // JOIN
+          // ==================================================
+
           IconButton(
-            icon: const Icon(
+            icon:
+                const Icon(
               Icons.login,
             ),
             tooltip:
@@ -2484,13 +3578,17 @@ class _MapScreenState extends State<MapScreen> {
                 _showJoinTouringDialog,
           ),
 
+          // ==================================================
           // MEMBERS
+          // ==================================================
+
           Stack(
             alignment:
                 Alignment.center,
             children: [
               IconButton(
-                icon: const Icon(
+                icon:
+                    const Icon(
                   Icons.groups,
                 ),
                 tooltip:
@@ -2533,16 +3631,23 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
 
+          // ==================================================
           // VEHICLE
+          // ==================================================
+
           IconButton(
-            icon: Icon(
+            icon:
+                Icon(
               _isMotorMode
-                  ? Icons.two_wheeler
-                  : Icons.directions_car,
+                  ? Icons
+                      .two_wheeler
+                  : Icons
+                      .directions_car,
             ),
             tooltip:
                 'Ganti Kendaraan',
-            onPressed: () async {
+            onPressed:
+                () async {
               setState(() {
                 _isMotorMode =
                     !_isMotorMode;
@@ -2556,26 +3661,35 @@ class _MapScreenState extends State<MapScreen> {
               if (_activeTouringId !=
                   null) {
                 await _saveMyMember();
+                await _saveTouringSession();
               }
             },
           ),
 
+          // ==================================================
           // MAP STYLE
+          // ==================================================
+
           PopupMenuButton<String>(
-            icon: const Icon(
+            icon:
+                const Icon(
               Icons.layers,
             ),
             tooltip:
                 'Map Style',
             onSelected:
-                (String key) {
+                (
+              String key,
+            ) {
               setState(() {
                 _selectedTile =
                     key;
               });
             },
             itemBuilder:
-                (BuildContext context) {
+                (
+              BuildContext context,
+            ) {
               return _tileProviders
                   .keys
                   .map(
@@ -2584,9 +3698,12 @@ class _MapScreenState extends State<MapScreen> {
                 ) {
                   return PopupMenuItem<
                       String>(
-                    value: key,
+                    value:
+                        key,
                     child:
-                        Text(key),
+                        Text(
+                      key,
+                    ),
                   );
                 },
               ).toList();
@@ -2599,7 +3716,8 @@ class _MapScreenState extends State<MapScreen> {
       // BODY
       // ======================================================
 
-      body: Stack(
+      body:
+          Stack(
         children: [
           FlutterMap(
             mapController:
@@ -2632,7 +3750,8 @@ class _MapScreenState extends State<MapScreen> {
                         _selectedTile]!,
                 userAgentPackageName:
                     'com.tedapp.touringmap',
-                maxZoom: 19,
+                maxZoom:
+                    19,
               ),
 
               // ==================================================
@@ -2667,18 +3786,21 @@ class _MapScreenState extends State<MapScreen> {
                   if (_currentPosition !=
                       null)
                     Marker(
-                      point: LatLng(
+                      point:
+                          LatLng(
                         _currentPosition!
                             .latitude,
                         _currentPosition!
                             .longitude,
                       ),
-                      width: 70,
-                      height: 85,
-                      child: Column(
+                      width:
+                          70,
+                      height:
+                          85,
+                      child:
+                          Column(
                         mainAxisSize:
-                            MainAxisSize
-                                .min,
+                            MainAxisSize.min,
                         children: [
                           Transform.rotate(
                             angle:
@@ -2686,17 +3808,18 @@ class _MapScreenState extends State<MapScreen> {
                                     math.pi /
                                     180,
                             alignment:
-                                Alignment
-                                    .center,
+                                Alignment.center,
                             child:
                                 Image.asset(
                               _isMotorMode
                                   ? 'assets/metic.png'
                                   : 'assets/xtrail.png',
-                              width: 55,
-                              height: 55,
-                              fit: BoxFit
-                                  .contain,
+                              width:
+                                  55,
+                              height:
+                                  55,
+                              fit:
+                                  BoxFit.contain,
                             ),
                           ),
                           Container(
@@ -2744,20 +3867,21 @@ class _MapScreenState extends State<MapScreen> {
                   Marker(
                     point:
                         _titikKumpul,
-                    width: 55,
-                    height: 65,
+                    width:
+                        55,
+                    height:
+                        65,
                     child:
                         const Column(
                       mainAxisSize:
-                          MainAxisSize
-                              .min,
+                          MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons
-                              .location_on,
+                          Icons.location_on,
                           color:
                               Colors.green,
-                          size: 40,
+                          size:
+                              40,
                         ),
                         Text(
                           'Start',
@@ -2766,8 +3890,7 @@ class _MapScreenState extends State<MapScreen> {
                             fontSize:
                                 10,
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ],
@@ -2781,19 +3904,21 @@ class _MapScreenState extends State<MapScreen> {
                   Marker(
                     point:
                         _destinasi,
-                    width: 55,
-                    height: 65,
+                    width:
+                        55,
+                    height:
+                        65,
                     child:
                         const Column(
                       mainAxisSize:
-                          MainAxisSize
-                              .min,
+                          MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.flag,
                           color:
                               Colors.red,
-                          size: 40,
+                          size:
+                              40,
                         ),
                         Text(
                           'Finish',
@@ -2802,8 +3927,7 @@ class _MapScreenState extends State<MapScreen> {
                             fontSize:
                                 10,
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ],
@@ -2821,12 +3945,14 @@ class _MapScreenState extends State<MapScreen> {
                       return Marker(
                         point:
                             member.location,
-                        width: 90,
-                        height: 100,
-                        child: Column(
+                        width:
+                            90,
+                        height:
+                            100,
+                        child:
+                            Column(
                           mainAxisSize:
-                              MainAxisSize
-                                  .min,
+                              MainAxisSize.min,
                           children: [
                             Transform.rotate(
                               angle:
@@ -2834,18 +3960,18 @@ class _MapScreenState extends State<MapScreen> {
                                       math.pi /
                                       180,
                               alignment:
-                                  Alignment
-                                      .center,
+                                  Alignment.center,
                               child:
                                   Image.asset(
                                 _vehicleAsset(
-                                  member
-                                      .vehicleType,
+                                  member.vehicleType,
                                 ),
-                                width: 55,
-                                height: 55,
-                                fit: BoxFit
-                                    .contain,
+                                width:
+                                    55,
+                                height:
+                                    55,
+                                fit:
+                                    BoxFit.contain,
                               ),
                             ),
                             Container(
@@ -2880,8 +4006,7 @@ class _MapScreenState extends State<MapScreen> {
                                   color:
                                       Colors.white,
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                             ),
@@ -2900,11 +4025,12 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            right: 15,
-            bottom: 175,
+            right:
+                15,
+            bottom:
+                175,
             child:
-                FloatingActionButton
-                    .small(
+                FloatingActionButton.small(
               heroTag:
                   'center_location',
               backgroundColor:
@@ -2925,21 +4051,27 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            left: 10,
-            right: 10,
-            top: 10,
-            child: Card(
-              color: Colors.black
-                  .withOpacity(
+            left:
+                10,
+            right:
+                10,
+            top:
+                10,
+            child:
+                Card(
+              color:
+                  Colors.black
+                      .withOpacity(
                 0.78,
               ),
-              child: Padding(
+              child:
+                  Padding(
                 padding:
-                    const EdgeInsets
-                        .all(
+                    const EdgeInsets.all(
                   12,
                 ),
-                child: Column(
+                child:
+                    Column(
                   crossAxisAlignment:
                       CrossAxisAlignment
                           .start,
@@ -2958,10 +4090,12 @@ class _MapScreenState extends State<MapScreen> {
                                       .green
                                   : Colors
                                       .red,
-                          size: 18,
+                          size:
+                              18,
                         ),
                         const SizedBox(
-                          width: 7,
+                          width:
+                              7,
                         ),
                         Text(
                           _gpsStatus,
@@ -2977,7 +4111,8 @@ class _MapScreenState extends State<MapScreen> {
                               ? Icons.mic
                               : Icons
                                   .mic_off,
-                          size: 18,
+                          size:
+                              18,
                           color:
                               _microphoneEnabled
                                   ? Colors
@@ -2986,7 +4121,8 @@ class _MapScreenState extends State<MapScreen> {
                                       .red,
                         ),
                         const SizedBox(
-                          width: 5,
+                          width:
+                              5,
                         ),
                         Text(
                           _microphoneEnabled
@@ -3008,7 +4144,8 @@ class _MapScreenState extends State<MapScreen> {
                     ),
 
                     const SizedBox(
-                      height: 8,
+                      height:
+                          8,
                     ),
 
                     Row(
@@ -3016,10 +4153,12 @@ class _MapScreenState extends State<MapScreen> {
                         const Icon(
                           Icons
                               .directions_car,
-                          size: 18,
+                          size:
+                              18,
                         ),
                         const SizedBox(
-                          width: 7,
+                          width:
+                              7,
                         ),
                         Text(
                           _routeDistanceKm >
@@ -3028,15 +4167,18 @@ class _MapScreenState extends State<MapScreen> {
                               : '${_distanceInKm.toStringAsFixed(1)} km',
                         ),
                         const SizedBox(
-                          width: 15,
+                          width:
+                              15,
                         ),
                         const Icon(
                           Icons
                               .access_time,
-                          size: 18,
+                          size:
+                              18,
                         ),
                         const SizedBox(
-                          width: 5,
+                          width:
+                              5,
                         ),
                         Text(
                           _routeDurationMinutes >
@@ -3047,8 +4189,10 @@ class _MapScreenState extends State<MapScreen> {
                         const Spacer(),
                         if (_isLoadingRoute)
                           const SizedBox(
-                            width: 18,
-                            height: 18,
+                            width:
+                                18,
+                            height:
+                                18,
                             child:
                                 CircularProgressIndicator(
                               strokeWidth:
@@ -3061,7 +4205,8 @@ class _MapScreenState extends State<MapScreen> {
                     if (_activeTouringId !=
                         null) ...[
                       const SizedBox(
-                        height: 9,
+                        height:
+                            9,
                       ),
                       Container(
                         padding:
@@ -3074,9 +4219,9 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                         decoration:
                             BoxDecoration(
-                          color: Colors
-                              .blue
-                              .withOpacity(
+                          color:
+                              Colors.blue
+                                  .withOpacity(
                             0.25,
                           ),
                           borderRadius:
@@ -3090,16 +4235,19 @@ class _MapScreenState extends State<MapScreen> {
                                 Colors.blue,
                           ),
                         ),
-                        child: Row(
+                        child:
+                            Row(
                           children: [
                             const Icon(
                               Icons.groups,
-                              size: 18,
+                              size:
+                                  18,
                               color:
                                   Colors.blue,
                             ),
                             const SizedBox(
-                              width: 8,
+                              width:
+                                  8,
                             ),
                             Expanded(
                               child:
@@ -3140,21 +4288,27 @@ class _MapScreenState extends State<MapScreen> {
 
           if (_mapPickingMode)
             Positioned(
-              left: 20,
-              right: 20,
-              bottom: 155,
-              child: Card(
-                color: Colors.orange
-                    .withOpacity(
+              left:
+                  20,
+              right:
+                  20,
+              bottom:
+                  155,
+              child:
+                  Card(
+                color:
+                    Colors.orange
+                        .withOpacity(
                   0.95,
                 ),
-                child: Padding(
+                child:
+                    Padding(
                   padding:
-                      const EdgeInsets
-                          .all(
+                      const EdgeInsets.all(
                     10,
                   ),
-                  child: Row(
+                  child:
+                      Row(
                     children: [
                       const Icon(
                         Icons.touch_app,
@@ -3162,10 +4316,12 @@ class _MapScreenState extends State<MapScreen> {
                             Colors.black,
                       ),
                       const SizedBox(
-                        width: 8,
+                        width:
+                            8,
                       ),
                       Expanded(
-                        child: Text(
+                        child:
+                            Text(
                           _pickingTarget ==
                                   'start'
                               ? 'Tap map untuk memilih titik kumpul'
@@ -3175,13 +4331,13 @@ class _MapScreenState extends State<MapScreen> {
                             color:
                                 Colors.black,
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ),
                       IconButton(
-                        onPressed: () {
+                        onPressed:
+                            () {
                           setState(() {
                             _mapPickingMode =
                                 false;
@@ -3208,14 +4364,19 @@ class _MapScreenState extends State<MapScreen> {
 
           if (_isTalking)
             Positioned(
-              left: 20,
-              bottom: 150,
-              child: Container(
+              left:
+                  20,
+              bottom:
+                  150,
+              child:
+                  Container(
                 padding:
                     const EdgeInsets
                         .symmetric(
-                  horizontal: 12,
-                  vertical: 7,
+                  horizontal:
+                      12,
+                  vertical:
+                      7,
                 ),
                 decoration:
                     BoxDecoration(
@@ -3227,7 +4388,8 @@ class _MapScreenState extends State<MapScreen> {
                     20,
                   ),
                 ),
-                child: const Row(
+                child:
+                    const Row(
                   mainAxisSize:
                       MainAxisSize.min,
                   children: [
@@ -3235,10 +4397,12 @@ class _MapScreenState extends State<MapScreen> {
                       Icons.mic,
                       color:
                           Colors.white,
-                      size: 18,
+                      size:
+                          18,
                     ),
                     SizedBox(
-                      width: 6,
+                      width:
+                          6,
                     ),
                     Text(
                       'Transmisi Suara Aktif...',
@@ -3247,8 +4411,7 @@ class _MapScreenState extends State<MapScreen> {
                         color:
                             Colors.white,
                         fontWeight:
-                            FontWeight
-                                .bold,
+                            FontWeight.bold,
                       ),
                     ),
                   ],
@@ -3261,19 +4424,25 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            right: 10,
-            bottom: 92,
-            child: Container(
+            right:
+                10,
+            bottom:
+                92,
+            child:
+                Container(
               padding:
                   const EdgeInsets
                       .symmetric(
-                horizontal: 8,
-                vertical: 4,
+                horizontal:
+                    8,
+                vertical:
+                    4,
               ),
               decoration:
                   BoxDecoration(
-                color: Colors.black
-                    .withOpacity(
+                color:
+                    Colors.black
+                        .withOpacity(
                   0.65,
                 ),
                 borderRadius:
@@ -3282,10 +4451,13 @@ class _MapScreenState extends State<MapScreen> {
                   5,
                 ),
               ),
-              child: const Text(
+              child:
+                  const Text(
                 'Created by Mr. Ted',
-                style: TextStyle(
-                  fontSize: 11,
+                style:
+                    TextStyle(
+                  fontSize:
+                      11,
                   color:
                       Colors.white,
                 ),
@@ -3298,10 +4470,14 @@ class _MapScreenState extends State<MapScreen> {
           // ==================================================
 
           Positioned(
-            left: 20,
-            right: 20,
-            bottom: 20,
-            child: Row(
+            left:
+                20,
+            right:
+                20,
+            bottom:
+                20,
+            child:
+                Row(
               children: [
                 // ==================================================
                 // PTT BUTTON
@@ -3320,9 +4496,12 @@ class _MapScreenState extends State<MapScreen> {
                       () {
                     _stopTalking();
                   },
-                  child: Container(
-                    width: 115,
-                    height: 60,
+                  child:
+                      Container(
+                    width:
+                        115,
+                    height:
+                        60,
                     decoration:
                         BoxDecoration(
                       color:
@@ -3357,7 +4536,8 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                       ],
                     ),
-                    child: Column(
+                    child:
+                        Column(
                       mainAxisAlignment:
                           MainAxisAlignment
                               .center,
@@ -3373,10 +4553,12 @@ class _MapScreenState extends State<MapScreen> {
                                       .white
                                   : Colors
                                       .greenAccent,
-                          size: 22,
+                          size:
+                              22,
                         ),
                         const SizedBox(
-                          height: 2,
+                          height:
+                              2,
                         ),
                         Text(
                           _isTalking
@@ -3389,8 +4571,7 @@ class _MapScreenState extends State<MapScreen> {
                             fontSize:
                                 11,
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ],
@@ -3399,7 +4580,8 @@ class _MapScreenState extends State<MapScreen> {
                 ),
 
                 const SizedBox(
-                  width: 12,
+                  width:
+                      12,
                 ),
 
                 // ==================================================
@@ -3439,21 +4621,22 @@ class _MapScreenState extends State<MapScreen> {
                         _isTouring
                             ? _stopTouring
                             : _startTouring,
-                    icon: Icon(
+                    icon:
+                        Icon(
                       _isTouring
                           ? Icons.stop
                           : Icons
                               .play_arrow,
                     ),
-                    label: Text(
+                    label:
+                        Text(
                       _isTouring
                           ? 'STOP TOURING'
                           : 'START TOURING',
                       style:
                           const TextStyle(
                         fontWeight:
-                            FontWeight
-                                .bold,
+                            FontWeight.bold,
                       ),
                     ),
                   ),
