@@ -1,4 +1,4 @@
-import 'dart:async';
+j iniimport 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -835,84 +835,84 @@ void initState() {
   // ==========================================================
 
   Future<void> _getRoadRoute({
-    bool fromCurrentLocation = true,
-  }) async {
-    if (_isLoadingRoute) return;
+  bool fromCurrentLocation = true,
+}) async {
+  if (_isLoadingRoute) return;
 
-    LatLng start;
+  LatLng start;
 
-    if (fromCurrentLocation) {
-      if (_currentPosition == null) {
-        return;
-      }
-
-      start = LatLng(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      );
-    } else {
-      start = _titikKumpul;
+  if (fromCurrentLocation) {
+    if (_currentPosition == null) {
+      return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isLoadingRoute =
-            true;
-      });
+    start = LatLng(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+    );
+  } else {
+    start = _titikKumpul;
+  }
+
+  if (mounted) {
+    setState(() {
+      _isLoadingRoute = true;
+    });
+  }
+
+  try {
+    final url =
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${start.longitude},${start.latitude};'
+        '${_destinasi.longitude},${_destinasi.latitude}'
+        '?overview=full'
+        '&geometries=geojson'
+        '&alternatives=3';
+
+    final response = await http.get(
+      Uri.parse(url),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'OSRM HTTP ${response.statusCode}',
+      );
     }
 
-    try {
-      final url =
-          'https://router.project-osrm.org/route/v1/driving/'
-          '${start.longitude},${start.latitude};'
-          '${_destinasi.longitude},${_destinasi.latitude}'
-          '?overview=full&geometries=geojson';
+    final data = jsonDecode(response.body);
 
-      final response =
-          await http.get(
-        Uri.parse(url),
+    final routes = data['routes'] as List?;
+
+    if (routes == null || routes.isEmpty) {
+      throw Exception(
+        'Rute tidak ditemukan',
       );
+    }
 
-      if (response.statusCode !=
-          200) {
-        throw Exception(
-          'OSRM HTTP ${response.statusCode}',
-        );
-      }
+    final options = <RouteOption>[];
 
-      final data =
-          jsonDecode(
-        response.body,
-      );
-
-      final routes =
-          data['routes'] as List?;
-
-      if (routes == null ||
-          routes.isEmpty) {
-        throw Exception(
-          'Route tidak ditemukan',
-        );
-      }
-
+    for (
+      int i = 0;
+      i < routes.length && i < 3;
+      i++
+    ) {
       final route =
-          routes.first;
+          routes[i] as Map<String, dynamic>;
+
+      final geometry =
+          route['geometry']
+              as Map<String, dynamic>;
 
       final coordinates =
-          route['geometry']
-              ['coordinates'] as List;
+          geometry['coordinates'] as List;
 
       final points =
-          coordinates.map<LatLng>(
-        (item) {
-          return LatLng(
-            (item[1] as num)
-                .toDouble(),
-            (item[0] as num)
-                .toDouble(),
-          );
-        },
-      ).toList();
+          coordinates.map<LatLng>((item) {
+        return LatLng(
+          (item[1] as num).toDouble(),
+          (item[0] as num).toDouble(),
+        );
+      }).toList();
 
       final distanceMeters =
           (route['distance'] as num)
@@ -922,41 +922,90 @@ void initState() {
           (route['duration'] as num)
               .toDouble();
 
-      if (fromCurrentLocation) {
-        _lastRoutePosition =
-            _currentPosition;
+      String label;
+
+      if (i == 0) {
+        label = 'Rute tercepat';
+      } else {
+        label = 'Alternatif $i';
       }
 
-      if (mounted) {
-        setState(() {
-          _routePoints =
-              points;
-
-          _routeDistanceKm =
-              distanceMeters /
-                  1000;
-
-          _routeDurationMinutes =
-              durationSeconds /
-                  60;
-
-          _isLoadingRoute =
-              false;
-        });
-      }
-    } catch (e) {
-      debugPrint(
-        'Route error: $e',
+      options.add(
+        RouteOption(
+          label: label,
+          points: points,
+          distanceKm:
+              distanceMeters / 1000,
+          durationMinutes:
+              durationSeconds / 60,
+        ),
       );
+    }
 
-      if (mounted) {
-        setState(() {
-          _isLoadingRoute =
-              false;
-        });
-      }
+    if (options.isEmpty) {
+      throw Exception(
+        'Tidak ada pilihan rute.',
+      );
+    }
+
+    if (fromCurrentLocation) {
+      _lastRoutePosition =
+          _currentPosition;
+    }
+
+    // Pertahankan pilihan rute sebelumnya
+    // apabila masih tersedia.
+    int selectedIndex =
+        _selectedRouteIndex;
+
+    if (selectedIndex >=
+        options.length) {
+      selectedIndex = 0;
+    }
+
+    final selected =
+        options[selectedIndex];
+
+    if (mounted) {
+      setState(() {
+        _routeOptions = options;
+
+        _selectedRouteIndex =
+            selectedIndex;
+
+        _routePoints =
+            selected.points;
+
+        _routeDistanceKm =
+            selected.distanceKm;
+
+        _routeDurationMinutes =
+            selected.durationMinutes;
+
+        _isLoadingRoute = false;
+      });
+    }
+  } catch (e) {
+    debugPrint(
+      'Route error: $e',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoadingRoute = false;
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal mencari rute: $e',
+          ),
+        ),
+      );
     }
   }
+}
 
   // ==========================================================
   // START TOURING
