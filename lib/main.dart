@@ -58,6 +58,20 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class RouteOption {
+  final String label;
+  final List<LatLng> points;
+  final double distanceKm;
+  final double durationMinutes;
+
+  const RouteOption({
+    required this.label,
+    required this.points,
+    required this.distanceKm,
+    required this.durationMinutes,
+  });
+}
+
 class Member {
   final String id;
   final String name;
@@ -123,6 +137,9 @@ class _MapScreenState extends State<MapScreen> {
   double _routeDurationMinutes = 0;
 
   bool _isLoadingRoute = false;
+  List<RouteOption> _routeOptions = [];
+
+  int _selectedRouteIndex = 0;
 
   Position? _lastRoutePosition;
 
