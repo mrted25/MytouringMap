@@ -211,20 +211,19 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    _initializeGPS();
+  _initializeGPS();
 
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
     if (!kIsWeb) {
-      _initAgoraPTT();
+      await _initAgoraPTT();
     }
 
-    // Tunggu satu frame agar context siap untuk dialog.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _restoreTouringSession();
-    });
-  }
+    await _restoreTouringSession();
+  });
+}
 
   // ==========================================================
   // SAVE LOCAL TOURING SESSION
