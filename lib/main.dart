@@ -450,6 +450,75 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
   }
+  
+    // ==========================================================
+  // START TOURING
+  // ==========================================================
+
+  Future<void> _startTouring() async {
+    if (_currentPosition == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Lokasi GPS belum tersedia.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      _isTouring = true;
+      _touringStartTime = DateTime.now();
+    });
+
+    // Buat route dari posisi GPS sekarang
+    // menuju destinasi.
+    await _getRoadRoute(
+      fromCurrentLocation: true,
+    );
+
+    // Simpan status anggota sebagai Riding.
+    await _saveMyMember(
+      status: 'Riding',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Touring dimulai',
+          ),
+        ),
+      );
+    }
+  }
+
+  // ==========================================================
+  // STOP TOURING
+  // ==========================================================
+
+  Future<void> _stopTouring() async {
+    setState(() {
+      _isTouring = false;
+    });
+
+    // Simpan status anggota sebagai Stopped.
+    await _saveMyMember(
+      status: 'Stopped',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Touring dihentikan',
+          ),
+        ),
+      );
+    }
+  }
 
   // ==========================================================
   // NOMINATIM SEARCH
