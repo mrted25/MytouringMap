@@ -3782,75 +3782,57 @@ void initState() {
                   // MARKER SAYA
                   // ============================================
 
-                  if (_currentPosition !=
-                      null)
-                    Marker(
-                      point:
-                          LatLng(
-                        _currentPosition!
-                            .latitude,
-                        _currentPosition!
-                            .longitude,
-                      ),
-                      width:
-                          70,
-                      height:
-                          85,
-                      child:
-                          Column(
-                        mainAxisSize:
-                            MainAxisSize.min,
-                        children: [
-                          Transform.rotate(
-  // Tambahkan -45 derajat (-math.pi / 4) untuk meluruskan gambar miring bawaan
-  angle: (_heading - 45) * math.pi / 180,
-  alignment: Alignment.center,
-  child: Image.asset(
-    _isMotorMode
-        ? 'assets/metic.png'
-        : 'assets/xtrail.png',
-    width: 55,
-    height: 55,
-    fit: BoxFit.contain,
+                  if (_currentPosition != null)
+  Marker(
+    point: LatLng(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+    ),
+    width: 80,
+    height: 90,
+    // Menjaga marker tetap konsisten terhadap peta
+    rotate: true, 
+    child: Transform.rotate(
+      // Memutar motor SEKALIGUS label namanya agar nama selalu berada di ekor motor
+      angle: (_heading - 45) * math.pi / 180,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 1. Gambar Motor
+          Image.asset(
+            _isMotorMode
+                ? 'assets/metic.png'
+                : 'assets/xtrail.png',
+            width: 50,
+            height: 50,
+            fit: BoxFit.contain,
+          ),
+          
+          // 2. Label Nama di bagian belakang (pantat) motor
+          Container(
+            margin: const EdgeInsets.only(top: 2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 5,
+              vertical: 2,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.75),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'Saya',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
   ),
-),
-                          Container(
-                            padding:
-                                const EdgeInsets
-                                    .symmetric(
-                              horizontal:
-                                  5,
-                              vertical:
-                                  2,
-                            ),
-                            decoration:
-                                BoxDecoration(
-                              color: Colors
-                                  .black
-                                  .withOpacity(
-                                0.75,
-                              ),
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                4,
-                              ),
-                            ),
-                            child:
-                                const Text(
-                              'Saya',
-                              style:
-                                  TextStyle(
-                                fontSize:
-                                    10,
-                                color:
-                                    Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
 
                   // ============================================
                   // START
