@@ -129,11 +129,6 @@ class _MapScreenState extends State<MapScreen> {
   String _gpsStatus = 'GPS belum aktif';
   bool _locationReady = false;
 
-  // Heading kendaraan.
-  // 0   = Utara
-  // 90  = Timur
-  // 180 = Selatan
-  // 270 = Barat
   double _heading = 0;
 
   // ==========================================================
@@ -177,10 +172,8 @@ class _MapScreenState extends State<MapScreen> {
   final Map<String, String> _tileProviders = {
     'Standard':
         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-
     'Dark Mode':
         'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-
     'Humanitarian':
         'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
   };
@@ -284,13 +277,6 @@ class _MapScreenState extends State<MapScreen> {
   void _handlePosition(Position position) {
     if (!mounted) return;
 
-    // ========================================================
-    // HEADING
-    // ========================================================
-    //
-    // Jangan update heading ketika kendaraan berhenti.
-    // Dengan begitu marker tetap menghadap arah terakhir.
-    //
     if (position.heading >= 0 && position.speed > 1.0) {
       _heading = position.heading;
     }
@@ -367,9 +353,23 @@ class _MapScreenState extends State<MapScreen> {
   // OSRM ROUTE
   // ==========================================================
 
-  Future<void> _getRoadRoute() async {
-    if (_currentPosition == null) return;
+  Future<void> _getRoadRoute({
+    bool fromCurrentLocation = true,
+  }) async {
     if (_isLoadingRoute) return;
+
+    LatLng start;
+
+    if (fromCurrentLocation) {
+      if (_currentPosition == null) return;
+
+      start = LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+    } else {
+      start = _titikKumpul;
+    }
 
     if (mounted) {
       setState(() {
@@ -378,8 +378,6 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     try {
-      final start = _currentPosition!;
-
       final url =
           'https://router.project-osrm.org/route/v1/driving/'
           '${start.longitude},${start.latitude};'
@@ -423,7 +421,9 @@ class _MapScreenState extends State<MapScreen> {
       final durationSeconds =
           (route['duration'] as num).toDouble();
 
-      _lastRoutePosition = _currentPosition;
+      if (fromCurrentLocation) {
+        _lastRoutePosition = _currentPosition;
+      }
 
       if (mounted) {
         setState(() {
@@ -452,66 +452,350 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   // ==========================================================
-  // START TOURING
+  // NOMINATIM SEARCH
   // ==========================================================
 
-  Future<void> _startTouring() async {
-    if (_currentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lokasi GPS belum tersedia.',
-          ),
-        ),
-      );
+  Future<List<Map<String, dynamic>>> _searchPlaces(
+    String query,
+  ) async {
+    final trimmed = query.trim();
 
-      return;
+    if (trimmed.isEmpty) {
+      return [];
     }
 
-    setState(() {
-      _isTouring = true;
-      _touringStartTime = DateTime.now();
-    });
-
-    await _getRoadRoute();
-
-    await _saveMyMember(
-      status: 'Riding',
+    final uri = Uri.https(
+      'nominatim.openstreetmap.org',
+      '/search',
+      {
+        'q': trimmed,
+        'format': 'jsonv2',
+        'limit': '8',
+        'countrycodes': 'id',
+        'addressdetails': '1',
+        'accept-language': 'id',
+      },
     );
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Touring dimulai',
-          ),
-        ),
+    final response = await http.get(
+      uri,
+      headers: const {
+        'User-Agent':
+            'TouringMap/1.0 (Flutter OpenStreetMap Nominatim client)',
+        'Accept':
+            'application/json',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Pencarian tempat gagal '
+        '(HTTP ${response.statusCode})',
       );
     }
+
+    final decoded =
+        jsonDecode(response.body);
+
+    if (decoded is! List) {
+      return [];
+    }
+
+    return decoded
+        .whereType<Map>()
+        .map<Map<String, dynamic>>(
+          (item) => Map<String, dynamic>.from(item),
+        )
+        .toList();
   }
 
   // ==========================================================
-  // STOP TOURING
+  // SEARCH PLACE DIALOG
   // ==========================================================
 
-  Future<void> _stopTouring() async {
-    setState(() {
-      _isTouring = false;
-    });
+  Future<void> _showPlaceSearchDialog(
+    String target,
+  ) async {
+    final controller =
+        TextEditingController();
 
-    await _saveMyMember(
-      status: 'Stopped',
+    List<Map<String, dynamic>> results = [];
+
+    bool isSearching = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (
+            context,
+            setDialogState,
+          ) {
+            Future<void> doSearch() async {
+              final query =
+                  controller.text.trim();
+
+              if (query.isEmpty) {
+                return;
+              }
+
+              setDialogState(() {
+                isSearching = true;
+                results = [];
+              });
+
+              try {
+                final searchResults =
+                    await _searchPlaces(
+                  query,
+                );
+
+                if (context.mounted) {
+                  setDialogState(() {
+                    results =
+                        searchResults;
+                    isSearching = false;
+                  });
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  setDialogState(() {
+                    isSearching = false;
+                  });
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Gagal mencari tempat: $e',
+                      ),
+                    ),
+                  );
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    target == 'start'
+                        ? Icons.location_on
+                        : Icons.flag,
+                    color:
+                        target == 'start'
+                            ? Colors.green
+                            : Colors.red,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Expanded(
+                    child: Text(
+                      target == 'start'
+                          ? 'Cari Titik Kumpul'
+                          : 'Cari Destinasi',
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 420,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller:
+                          controller,
+                      autofocus: true,
+                      textInputAction:
+                          TextInputAction.search,
+                      onSubmitted: (_) {
+                        doSearch();
+                      },
+                      decoration:
+                          InputDecoration(
+                        hintText:
+                            'Contoh: Indomaret Cibinong',
+                        prefixIcon:
+                            const Icon(
+                          Icons.search,
+                        ),
+                        suffixIcon:
+                            IconButton(
+                          onPressed:
+                              isSearching
+                                  ? null
+                                  : doSearch,
+                          icon:
+                              const Icon(
+                            Icons.search,
+                          ),
+                        ),
+                        border:
+                            const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 12,
+                    ),
+                    if (isSearching)
+                      const Padding(
+                        padding:
+                            EdgeInsets.all(
+                          20,
+                        ),
+                        child:
+                            CircularProgressIndicator(),
+                      )
+                    else if (results.isEmpty)
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Ketik nama tempat lalu tekan cari.',
+                            textAlign:
+                                TextAlign.center,
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount:
+                              results.length,
+                          separatorBuilder:
+                              (
+                            context,
+                            index,
+                          ) =>
+                                  const Divider(
+                            height: 1,
+                          ),
+                          itemBuilder:
+                              (
+                            context,
+                            index,
+                          ) {
+                            final result =
+                                results[index];
+
+                            final displayName =
+                                result[
+                                        'display_name']
+                                    ?.toString() ??
+                                'Tempat tanpa nama';
+
+                            final lat =
+                                double.tryParse(
+                              result[
+                                      'lat']
+                                  ?.toString() ??
+                                  '',
+                            );
+
+                            final lon =
+                                double.tryParse(
+                              result[
+                                      'lon']
+                                  ?.toString() ??
+                                  '',
+                            );
+
+                            return ListTile(
+                              leading:
+                                  Icon(
+                                target ==
+                                        'start'
+                                    ? Icons
+                                        .location_on
+                                    : Icons.flag,
+                                color:
+                                    target ==
+                                            'start'
+                                        ? Colors
+                                            .green
+                                        : Colors
+                                            .red,
+                              ),
+                              title:
+                                  Text(
+                                displayName,
+                                maxLines:
+                                    3,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                              ),
+                              onTap:
+                                  lat == null ||
+                                          lon ==
+                                              null
+                                      ? null
+                                      : () {
+                                          final point =
+                                              LatLng(
+                                            lat,
+                                            lon,
+                                          );
+
+                                          if (target ==
+                                              'start') {
+                                            setState(
+                                              () {
+                                                _titikKumpul =
+                                                    point;
+                                              },
+                                            );
+                                          } else {
+                                            setState(
+                                              () {
+                                                _destinasi =
+                                                    point;
+                                              },
+                                            );
+                                          }
+
+                                          Navigator.pop(
+                                            context,
+                                          );
+
+                                          _getRoadRoute(
+                                            fromCurrentLocation:
+                                                _isTouring,
+                                          );
+
+                                          _mapController
+                                              .move(
+                                            point,
+                                            16,
+                                          );
+                                        },
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      context,
+                    );
+                  },
+                  child:
+                      const Text('Tutup'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Touring dihentikan',
-          ),
-        ),
-      );
-    }
+    controller.dispose();
   }
 
   // ==========================================================
@@ -526,93 +810,203 @@ class _MapScreenState extends State<MapScreen> {
           title: const Text(
             'Atur Rute',
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.location_on,
-                  color: Colors.green,
-                ),
-                title: const Text(
-                  'Titik Kumpul',
-                ),
-                subtitle: Text(
-                  '${_titikKumpul.latitude.toStringAsFixed(6)}, '
-                  '${_titikKumpul.longitude.toStringAsFixed(6)}',
-                ),
-                onTap: () {
-                  Navigator.pop(context);
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                // ==================================================
+                // TITIK KUMPUL
+                // ==================================================
 
-                  setState(() {
-                    _mapPickingMode = true;
-                    _pickingTarget = 'start';
-                  });
-
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Tap map untuk memilih titik kumpul.',
-                      ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.location_on,
+                    color: Colors.green,
+                  ),
+                  title: const Text(
+                    'Titik Kumpul',
+                    style: TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
                     ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.flag,
-                  color: Colors.red,
-                ),
-                title: const Text(
-                  'Destinasi',
-                ),
-                subtitle: Text(
-                  '${_destinasi.latitude.toStringAsFixed(6)}, '
-                  '${_destinasi.longitude.toStringAsFixed(6)}',
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-
-                  setState(() {
-                    _mapPickingMode = true;
-                    _pickingTarget = 'destination';
-                  });
-
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Tap map untuk memilih destinasi.',
-                      ),
+                  ),
+                  subtitle: Text(
+                    '${_titikKumpul.latitude.toStringAsFixed(6)}, '
+                    '${_titikKumpul.longitude.toStringAsFixed(6)}',
+                  ),
+                  trailing: IconButton(
+                    tooltip:
+                        'Cari tempat',
+                    icon: const Icon(
+                      Icons.search,
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-
-                  if (_currentPosition != null) {
-                    setState(() {
-                      _titikKumpul = LatLng(
-                        _currentPosition!.latitude,
-                        _currentPosition!.longitude,
+                    onPressed: () {
+                      Navigator.pop(
+                        context,
                       );
+
+                      _showPlaceSearchDialog(
+                        'start',
+                      );
+                    },
+                  ),
+                  onTap: () {
+                    Navigator.pop(
+                      context,
+                    );
+
+                    setState(() {
+                      _mapPickingMode =
+                          true;
+                      _pickingTarget =
+                          'start';
                     });
 
-                    _getRoadRoute();
-                  }
-                },
-                icon: const Icon(
-                  Icons.my_location,
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Tap map untuk memilih titik kumpul.',
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                label: const Text(
-                  'Gunakan Lokasi Saya',
+
+                const Divider(),
+
+                // ==================================================
+                // DESTINASI
+                // ==================================================
+
+                ListTile(
+                  leading: const Icon(
+                    Icons.flag,
+                    color: Colors.red,
+                  ),
+                  title: const Text(
+                    'Destinasi',
+                    style: TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${_destinasi.latitude.toStringAsFixed(6)}, '
+                    '${_destinasi.longitude.toStringAsFixed(6)}',
+                  ),
+                  trailing: IconButton(
+                    tooltip:
+                        'Cari tempat',
+                    icon: const Icon(
+                      Icons.search,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(
+                        context,
+                      );
+
+                      _showPlaceSearchDialog(
+                        'destination',
+                      );
+                    },
+                  ),
+                  onTap: () {
+                    Navigator.pop(
+                      context,
+                    );
+
+                    setState(() {
+                      _mapPickingMode =
+                          true;
+                      _pickingTarget =
+                          'destination';
+                    });
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Tap map untuk memilih destinasi.',
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ],
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                // ==================================================
+                // GUNAKAN LOKASI SAYA
+                // ==================================================
+
+                SizedBox(
+                  width: double.infinity,
+                  child:
+                      ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(
+                        context,
+                      );
+
+                      if (_currentPosition !=
+                          null) {
+                        setState(() {
+                          _titikKumpul =
+                              LatLng(
+                            _currentPosition!
+                                .latitude,
+                            _currentPosition!
+                                .longitude,
+                          );
+                        });
+
+                        _getRoadRoute(
+                          fromCurrentLocation:
+                              _isTouring,
+                        );
+                      } else {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Lokasi GPS belum tersedia.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.my_location,
+                    ),
+                    label: const Text(
+                      'Gunakan Lokasi Saya sebagai Titik Kumpul',
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 8,
+                ),
+
+                const Text(
+                  'Tip: tekan ikon 🔍 untuk mencari tempat berdasarkan nama.',
+                  textAlign:
+                      TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color:
+                        Colors.grey,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -643,7 +1037,9 @@ class _MapScreenState extends State<MapScreen> {
       });
     }
 
-    _getRoadRoute();
+    _getRoadRoute(
+      fromCurrentLocation: _isTouring,
+    );
   }
 
   // ==========================================================
@@ -663,37 +1059,45 @@ class _MapScreenState extends State<MapScreen> {
           ),
           content: TextField(
             controller: nameController,
-            decoration: const InputDecoration(
-              labelText: 'Nama Touring',
-              hintText: 'Contoh: Touring Bogor',
-              border: OutlineInputBorder(),
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Nama Touring',
+              hintText:
+                  'Contoh: Touring Bogor',
+              border:
+                  OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(
+                  context,
+                );
               },
-              child: const Text(
-                'Batal',
-              ),
+              child:
+                  const Text('Batal'),
             ),
             ElevatedButton(
               onPressed: () async {
                 final name =
-                    nameController.text.trim();
+                    nameController
+                        .text
+                        .trim();
 
                 if (name.isEmpty) return;
 
-                Navigator.pop(context);
+                Navigator.pop(
+                  context,
+                );
 
                 await _createTouring(
                   name,
                 );
               },
-              child: const Text(
-                'Buat',
-              ),
+              child:
+                  const Text('Buat'),
             ),
           ],
         );
@@ -708,7 +1112,8 @@ class _MapScreenState extends State<MapScreen> {
   ) async {
     try {
       final user =
-          FirebaseAuth.instance.currentUser;
+          FirebaseAuth.instance
+              .currentUser;
 
       if (user == null) {
         throw Exception(
@@ -723,9 +1128,12 @@ class _MapScreenState extends State<MapScreen> {
           await service.createTouring(
         name: name,
         captainId: user.uid,
-        captainName: 'Road Captain',
-        startLat: _titikKumpul.latitude,
-        startLng: _titikKumpul.longitude,
+        captainName:
+            'Road Captain',
+        startLat:
+            _titikKumpul.latitude,
+        startLng:
+            _titikKumpul.longitude,
         destinationLat:
             _destinasi.latitude,
         destinationLng:
@@ -790,8 +1198,9 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
           SnackBar(
             content: Text(
               'Gagal membuat touring: $e',
@@ -819,31 +1228,40 @@ class _MapScreenState extends State<MapScreen> {
             'Touring Berhasil Dibuat',
           ),
           content: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
             children: [
               Text(
                 name,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 18,
                   fontWeight:
                       FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
               const Text(
                 'Kode Touring',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(
+                height: 8,
+              ),
               SelectableText(
                 code,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 32,
                   fontWeight:
                       FontWeight.bold,
                   letterSpacing: 5,
                 ),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(
+                height: 15,
+              ),
               const Text(
                 'Bagikan kode ini kepada anggota touring.',
                 textAlign:
@@ -861,8 +1279,9 @@ class _MapScreenState extends State<MapScreen> {
                 );
 
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
                     const SnackBar(
                       content: Text(
                         'Kode berhasil disalin.',
@@ -874,17 +1293,17 @@ class _MapScreenState extends State<MapScreen> {
               icon: const Icon(
                 Icons.copy,
               ),
-              label: const Text(
-                'Copy',
-              ),
+              label:
+                  const Text('Copy'),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(
+                  context,
+                );
               },
-              child: const Text(
-                'OK',
-              ),
+              child:
+                  const Text('OK'),
             ),
           ],
         );
@@ -938,7 +1357,8 @@ class _MapScreenState extends State<MapScreen> {
                             'Contoh: A7K9P2',
                         border:
                             OutlineInputBorder(),
-                        prefixIcon: Icon(
+                        prefixIcon:
+                            Icon(
                           Icons
                               .confirmation_number,
                         ),
@@ -958,7 +1378,8 @@ class _MapScreenState extends State<MapScreen> {
                             'Masukkan nama',
                         border:
                             OutlineInputBorder(),
-                        prefixIcon: Icon(
+                        prefixIcon:
+                            Icon(
                           Icons.person,
                         ),
                       ),
@@ -1110,7 +1531,8 @@ class _MapScreenState extends State<MapScreen> {
   }) async {
     try {
       final user =
-          FirebaseAuth.instance.currentUser;
+          FirebaseAuth.instance
+              .currentUser;
 
       if (user == null) {
         throw Exception(
@@ -1130,8 +1552,9 @@ class _MapScreenState extends State<MapScreen> {
 
       if (query.docs.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(
             const SnackBar(
               content: Text(
                 'Kode touring tidak ditemukan.',
@@ -1216,12 +1639,16 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (_currentPosition != null) {
-        await _getRoadRoute();
+        await _getRoadRoute(
+          fromCurrentLocation:
+              _isTouring,
+        );
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
           SnackBar(
             content: Text(
               'Berhasil join ${data['name'] ?? 'Touring'}',
@@ -1235,8 +1662,9 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
           SnackBar(
             content: Text(
               'Gagal join touring: $e',
@@ -1258,7 +1686,8 @@ class _MapScreenState extends State<MapScreen> {
         _activeTouringId;
 
     final user =
-        FirebaseAuth.instance.currentUser;
+        FirebaseAuth.instance
+            .currentUser;
 
     if (touringId == null ||
         user == null) {
@@ -1312,7 +1741,8 @@ class _MapScreenState extends State<MapScreen> {
         _activeTouringId;
 
     final user =
-        FirebaseAuth.instance.currentUser;
+        FirebaseAuth.instance
+            .currentUser;
 
     if (touringId == null ||
         user == null) {
@@ -1384,7 +1814,8 @@ class _MapScreenState extends State<MapScreen> {
             .listen(
       (snapshot) {
         final user =
-            FirebaseAuth.instance.currentUser;
+            FirebaseAuth.instance
+                .currentUser;
 
         final members =
             <Member>[];
@@ -1417,18 +1848,18 @@ class _MapScreenState extends State<MapScreen> {
 
           final name =
               data['name']
-                  ?.toString() ??
-              'Member';
+                      ?.toString() ??
+                  'Member';
 
           final status =
               data['status']
-                  ?.toString() ??
-              'Joined';
+                      ?.toString() ??
+                  'Joined';
 
           final vehicleType =
               data['vehicleType']
-                  ?.toString() ??
-              'Motor';
+                      ?.toString() ??
+                  'Motor';
 
           members.add(
             Member(
@@ -1650,7 +2081,8 @@ class _MapScreenState extends State<MapScreen> {
                                 Colors.green,
                             child: Icon(
                               Icons.person,
-                              color: Colors.white,
+                              color:
+                                  Colors.white,
                             ),
                           ),
                           title: Text(
@@ -1681,8 +2113,7 @@ class _MapScreenState extends State<MapScreen> {
                             .isEmpty)
                           const Padding(
                             padding:
-                                EdgeInsets
-                                    .all(
+                                EdgeInsets.all(
                               30,
                             ),
                             child: Center(
@@ -1705,7 +2136,8 @@ class _MapScreenState extends State<MapScreen> {
                                   child:
                                       const Icon(
                                     Icons.person,
-                                    color: Colors.white,
+                                    color:
+                                        Colors.white,
                                   ),
                                 ),
                                 title:
@@ -1724,7 +2156,8 @@ class _MapScreenState extends State<MapScreen> {
                                           math.pi /
                                           180,
                                   alignment:
-                                      Alignment.center,
+                                      Alignment
+                                          .center,
                                   child:
                                       Image.asset(
                                     _vehicleAsset(
@@ -2179,8 +2612,6 @@ class _MapScreenState extends State<MapScreen> {
                                 .min,
                         children: [
                           Transform.rotate(
-                            // ROTASI 2D SAJA
-                            // mengikuti heading GPS
                             angle:
                                 _heading *
                                     math.pi /
@@ -2199,7 +2630,6 @@ class _MapScreenState extends State<MapScreen> {
                                   .contain,
                             ),
                           ),
-
                           Container(
                             padding:
                                 const EdgeInsets
@@ -2330,9 +2760,6 @@ class _MapScreenState extends State<MapScreen> {
                                   .min,
                           children: [
                             Transform.rotate(
-                              // Member juga
-                              // berputar sesuai
-                              // heading GPS mereka.
                               angle:
                                   member.heading *
                                       math.pi /
@@ -2352,7 +2779,6 @@ class _MapScreenState extends State<MapScreen> {
                                     .contain,
                               ),
                             ),
-
                             Container(
                               padding:
                                   const EdgeInsets
@@ -2614,8 +3040,7 @@ class _MapScreenState extends State<MapScreen> {
                                 style:
                                     const TextStyle(
                                   fontWeight:
-                                      FontWeight
-                                          .bold,
+                                      FontWeight.bold,
                                 ),
                               ),
                             ),
@@ -2625,8 +3050,7 @@ class _MapScreenState extends State<MapScreen> {
                               style:
                                   const TextStyle(
                                 fontWeight:
-                                    FontWeight
-                                        .bold,
+                                    FontWeight.bold,
                                 letterSpacing:
                                     2,
                               ),
@@ -2821,6 +3245,10 @@ class _MapScreenState extends State<MapScreen> {
                   },
                   onLongPressEnd:
                       (_) {
+                    _stopTalking();
+                  },
+                  onLongPressCancel:
+                      () {
                     _stopTalking();
                   },
                   child: Container(
