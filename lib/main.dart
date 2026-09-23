@@ -3802,25 +3802,18 @@ void initState() {
                             MainAxisSize.min,
                         children: [
                           Transform.rotate(
-                            angle:
-                                _heading *
-                                    math.pi /
-                                    180,
-                            alignment:
-                                Alignment.center,
-                            child:
-                                Image.asset(
-                              _isMotorMode
-                                  ? 'assets/metic.png'
-                                  : 'assets/xtrail.png',
-                              width:
-                                  55,
-                              height:
-                                  55,
-                              fit:
-                                  BoxFit.contain,
-                            ),
-                          ),
+  // Tambahkan -45 derajat (-math.pi / 4) untuk meluruskan gambar miring bawaan
+  angle: (_heading - 45) * math.pi / 180,
+  alignment: Alignment.center,
+  child: Image.asset(
+    _isMotorMode
+        ? 'assets/metic.png'
+        : 'assets/xtrail.png',
+    width: 55,
+    height: 55,
+    fit: BoxFit.contain,
+  ),
+),
                           Container(
                             padding:
                                 const EdgeInsets
