@@ -1958,6 +1958,7 @@ void initState() {
     LatLng point,
   ) {
     if (!_mapPickingMode) {
+      _selectRouteFromMapTap(point);
       return;
     }
 
@@ -1988,6 +1989,58 @@ void initState() {
           _isTouring,
     );
   }
+
+  void _selectRouteFromMapTap(LatLng tapPoint) {
+  if (_routeOptions.isEmpty) {
+    return;
+  }
+
+  const distance = Distance();
+
+  int? nearestRouteIndex;
+  double nearestDistance = double.infinity;
+
+  for (int i = 0; i < _routeOptions.length; i++) {
+    final route = _routeOptions[i];
+
+    for (final point in route.points) {
+      final meters = distance.as(
+        LengthUnit.Meter,
+        tapPoint,
+        point,
+      );
+
+      if (meters < nearestDistance) {
+        nearestDistance = meters;
+        nearestRouteIndex = i;
+      }
+    }
+  }
+
+  if (nearestRouteIndex == null ||
+      nearestDistance > 100) {
+    return;
+  }
+
+  final selected =
+      _routeOptions[nearestRouteIndex];
+
+  if (mounted) {
+    setState(() {
+      _selectedRouteIndex =
+          nearestRouteIndex!;
+
+      _routePoints =
+          selected.points;
+
+      _routeDistanceKm =
+          selected.distanceKm;
+
+      _routeDurationMinutes =
+          selected.durationMinutes;
+    });
+  }
+}
 
   // ==========================================================
   // CREATE TOURING
@@ -3823,20 +3876,26 @@ void initState() {
               // ROUTE LINE
               // ==================================================
 
-              if (_routePoints
-                  .isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points:
-                          _routePoints,
-                      strokeWidth:
-                          5,
-                      color:
-                          Colors.blue,
-                    ),
-                  ],
-                ),
+              if (_routeOptions.isNotEmpty)
+  PolylineLayer(
+    polylines: [
+      for (int i = 0;
+          i < _routeOptions.length;
+          i++)
+        Polyline(
+          points:
+              _routeOptions[i].points,
+          strokeWidth:
+              i == _selectedRouteIndex
+                  ? 6
+                  : 4,
+          color:
+              i == _selectedRouteIndex
+                  ? Colors.blue
+                  : Colors.grey,
+        ),
+    ],
+  ),
 
               // ==================================================
               // MARKERS
