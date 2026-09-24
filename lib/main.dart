@@ -4038,86 +4038,58 @@ void initState() {
                   // ============================================
 
                   ..._groupMembers.map(
-                    (
-                      member,
-                    ) {
-                      return Marker(
-                        point:
-                            member.location,
-                        width:
-                            90,
-                        height:
-                            100,
-                        child:
-                            Column(
-                          mainAxisSize:
-                              MainAxisSize.min,
-                          children: [
-                            Transform.rotate(
-                              angle:
-                                  member.heading *
-                                      math.pi /
-                                      180,
-                              alignment:
-                                  Alignment.center,
-                              child:
-                                  Image.asset(
-                                _vehicleAsset(
-                                  member.vehicleType,
-                                ),
-                                width:
-                                    55,
-                                height:
-                                    55,
-                                fit:
-                                    BoxFit.contain,
-                              ),
-                            ),
-                            Container(
-                              padding:
-                                  const EdgeInsets
-                                      .symmetric(
-                                horizontal:
-                                    6,
-                                vertical:
-                                    3,
-                              ),
-                              decoration:
-                                  BoxDecoration(
-                                color: member
-                                    .color
-                                    .withOpacity(
-                                  0.9,
-                                ),
-                                borderRadius:
-                                    BorderRadius
-                                        .circular(
-                                  5,
-                                ),
-                              ),
-                              child:
-                                  Text(
-                                member.name,
-                                style:
-                                    const TextStyle(
-                                  fontSize:
-                                      10,
-                                  color:
-                                      Colors.white,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ],
+  (member) {
+    return Marker(
+      point: member.location,
+      width: 90,
+      height: 100,
+      // 1. Agar marker tetap sinkron dengan orientasi peta
+      rotate: true,
+      // 2. Memutar kendaraan DAN nama anggota sekaligus
+      child: Transform.rotate(
+        angle: (member.heading - 45) * math.pi / 180,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Gambar Kendaraan
+            Image.asset(
+              _vehicleAsset(
+                member.vehicleType,
               ),
-            ],
-          ),
+              width: 55,
+              height: 55,
+              fit: BoxFit.contain,
+            ),
+            // Label Nama Anggota (Selalu menempel di belakang kendaraan)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: member.color.withOpacity(
+                  0.9,
+                ),
+                borderRadius: BorderRadius.circular(
+                  5,
+                ),
+              ),
+              child: Text(
+                member.name,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  },
+),
 
           // ==================================================
           // CENTER LOCATION
