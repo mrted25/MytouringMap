@@ -754,6 +754,47 @@ void initState() {
     }
   }
 
+  // ==========================================================
+// REFRESH / RECONNECT GPS
+// ==========================================================
+
+Future<void> _refreshGPS() async {
+  try {
+    if (mounted) {
+      setState(() {
+        _locationReady = false;
+        _gpsStatus = 'Menghubungkan GPS...';
+      });
+    }
+
+    // Hentikan stream GPS lama.
+    await _positionStream?.cancel();
+    _positionStream = null;
+
+    // Tunggu sebentar agar stream lama benar-benar dilepas.
+    await Future.delayed(
+      const Duration(
+        milliseconds: 300,
+      ),
+    );
+
+    // Jalankan kembali seluruh proses GPS:
+    // cek service → permission → posisi → stream.
+    await _initializeGPS();
+  } catch (e) {
+    debugPrint(
+      'GPS refresh error: $e',
+    );
+
+    if (mounted) {
+      setState(() {
+        _locationReady = false;
+        _gpsStatus = 'GPS error';
+      });
+    }
+  }
+}
+
   void _handlePosition(
     Position position,
   ) {
@@ -3558,6 +3599,67 @@ void initState() {
       }
     }
   }
+
+  // ==========================================================
+// REFRESH / RECONNECT PTT
+// ==========================================================
+
+Future<void> _refreshAgoraPTT() async {
+  try {
+    if (kIsWeb) return;
+
+    if (mounted) {
+      setState(() {
+        _microphoneEnabled = false;
+        _isPttInitialized = false;
+        _isTalking = false;
+      });
+    }
+
+    // Lepaskan Agora lama jika masih ada.
+    if (_engine != null) {
+      try {
+        await _engine!.leaveChannel();
+      } catch (e) {
+        debugPrint(
+          'Agora leave error: $e',
+        );
+      }
+
+      try {
+        await _engine!.release();
+      } catch (e) {
+        debugPrint(
+          'Agora release error: $e',
+        );
+      }
+
+      _engine = null;
+    }
+
+    // Beri sedikit waktu agar resource microphone benar-benar dilepas.
+    await Future.delayed(
+      const Duration(
+        milliseconds: 500,
+      ),
+    );
+
+    // Inisialisasi dan connect ulang.
+    await _initAgoraPTT();
+  } catch (e) {
+    debugPrint(
+      'Agora refresh error: $e',
+    );
+
+    if (mounted) {
+      setState(() {
+        _microphoneEnabled = false;
+        _isPttInitialized = false;
+        _isTalking = false;
+      });
+    }
+  }
+}
 
   // ==========================================================
   // PTT START
