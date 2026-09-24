@@ -879,13 +879,15 @@ void initState() {
 
   try {
     final url =
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${start.longitude},${start.latitude};'
-        '${_destinasi.longitude},${_destinasi.latitude}'
-        '?overview=full'
-        '&geometries=geojson'
-        '&alternatives=3';
-
+    'https://router.project-osrm.org/route/v1/driving/'
+    '${start.longitude},${start.latitude};'
+    '${_destinasi.longitude},${_destinasi.latitude}'
+    '?overview=full'
+    '&geometries=geojson'
+    '&alternatives=3'
+    '${_isMotorMode ? 
+    '&exclude=motorway' : ''}';
+    
     final response = await http.get(
       Uri.parse(url),
     );
