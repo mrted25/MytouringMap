@@ -4023,7 +4023,7 @@ Future<void> _refreshAgoraPTT() async {
     rotate: true, 
     child: Transform.rotate(
       // Memutar motor SEKALIGUS label namanya agar nama selalu berada di ekor motor
-      angle: (_heading - 45) * math.pi / 180,
+      angle: (_heading + 135) * math.pi / 180,
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -4151,7 +4151,7 @@ Future<void> _refreshAgoraPTT() async {
       rotate: true,
       // 2. Memutar kendaraan DAN nama anggota sekaligus
       child: Transform.rotate(
-        angle: (member.heading - 45) * math.pi / 180,
+        angle: (member.heading + 135) * math.pi / 180,
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
