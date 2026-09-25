@@ -919,25 +919,34 @@ Future<void> _refreshGPS() async {
   }
 
   try {
-    final url =
-    'https://router.project-osrm.org/route/v1/driving/'
-    '${start.longitude},${start.latitude};'
-    '${_destinasi.longitude},${_destinasi.latitude}'
-    '?overview=full'
-    '&geometries=geojson'
-    '&alternatives=3'
-    '${_isMotorMode ? 
-    '&exclude=motorway' : ''}';
-    
-    final response = await http.get(
-      Uri.parse(url),
-    );
+    final uri = Uri.parse(
+  'https://router.project-osrm.org/route/v1/driving/'
+  '${start.longitude},${start.latitude};'
+  '${_destinasi.longitude},${_destinasi.latitude}',
+).replace(
+  queryParameters: {
+    'overview': 'full',
+    'geometries': 'geojson',
+    'alternatives': 'true',
+    if (_isMotorMode)
+      'exclude': 'motorway',
+  },
+);
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        'OSRM HTTP ${response.statusCode}',
-      );
-    }
+debugPrint('OSRM URL: $uri');
+    
+    final response = await http.get(uri);
+
+if (response.statusCode != 200) {
+  debugPrint(
+    'OSRM response: ${response.body}',
+  );
+
+  throw Exception(
+    'OSRM HTTP ${response.statusCode}: '
+    '${response.body}',
+  );
+}
 
     final data = jsonDecode(response.body);
 
@@ -4256,68 +4265,83 @@ Future<void> _refreshAgoraPTT() async {
                           .start,
                   children: [
                     Row(
-                      children: [
-                        Icon(
-                          _locationReady
-                              ? Icons
-                                  .gps_fixed
-                              : Icons
-                                  .gps_off,
-                          color:
-                              _locationReady
-                                  ? Colors
-                                      .green
-                                  : Colors
-                                      .red,
-                          size:
-                              18,
-                        ),
-                        const SizedBox(
-                          width:
-                              7,
-                        ),
-                        Text(
-                          _gpsStatus,
-                          style:
-                              const TextStyle(
-                            fontSize:
-                                12,
-                          ),
-                        ),
-                        const Spacer(),
-                        Icon(
-                          _microphoneEnabled
-                              ? Icons.mic
-                              : Icons
-                                  .mic_off,
-                          size:
-                              18,
-                          color:
-                              _microphoneEnabled
-                                  ? Colors
-                                      .green
-                                  : Colors
-                                      .red,
-                        ),
-                        const SizedBox(
-                          width:
-                              5,
-                        ),
-                        Text(
-                          _microphoneEnabled
-                              ? 'Microphone Aktif'
-                              : 'Microphone Tidak Aktif',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                12,
-                            color:
-                                _microphoneEnabled
-                                    ? Colors
-                                        .green
-                                    : Colors
-                                        .red,
-                          ),
+  children: [
+    Icon(
+      _locationReady
+          ? Icons.gps_fixed
+          : Icons.gps_off,
+      color: _locationReady
+          ? Colors.green
+          : Colors.red,
+      size: 18,
+    ),
+    const SizedBox(
+      width: 7,
+    ),
+    Text(
+      _gpsStatus,
+      style: const TextStyle(
+        fontSize: 12,
+      ),
+    ),
+
+    // REFRESH GPS
+    IconButton(
+      onPressed: _refreshGPS,
+      icon: const Icon(
+        Icons.refresh,
+        size: 18,
+      ),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(
+        minWidth: 30,
+        minHeight: 30,
+      ),
+      tooltip: 'Refresh GPS',
+    ),
+  ],
+),
+                          const Spacer(),
+
+Icon(
+  _microphoneEnabled
+      ? Icons.mic
+      : Icons.mic_off,
+  size: 18,
+  color: _microphoneEnabled
+      ? Colors.green
+      : Colors.red,
+),
+
+const SizedBox(
+  width: 5,
+),
+
+Text(
+  _microphoneEnabled
+      ? 'Microphone Aktif'
+      : 'Microphone Tidak Aktif',
+  style: TextStyle(
+    fontSize: 12,
+    color: _microphoneEnabled
+        ? Colors.green
+        : Colors.red,
+  ),
+),
+
+// REFRESH MICROPHONE
+IconButton(
+  onPressed: _refreshAgoraPTT,
+  icon: const Icon(
+    Icons.refresh,
+    size: 18,
+  ),
+  padding: EdgeInsets.zero,
+  constraints: const BoxConstraints(
+    minWidth: 30,
+    minHeight: 30,
+  ),
+  tooltip: 'Refresh Microphone',
                         ),
                       ],
                     ),
