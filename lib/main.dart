@@ -4266,6 +4266,9 @@ Future<void> _refreshAgoraPTT() async {
                   children: [
                     Row(
   children: [
+    // ==================================================
+    // GPS
+    // ==================================================
     Icon(
       _locationReady
           ? Icons.gps_fixed
@@ -4275,9 +4278,11 @@ Future<void> _refreshAgoraPTT() async {
           : Colors.red,
       size: 18,
     ),
+
     const SizedBox(
       width: 7,
     ),
+
     Text(
       _gpsStatus,
       style: const TextStyle(
@@ -4285,7 +4290,6 @@ Future<void> _refreshAgoraPTT() async {
       ),
     ),
 
-    // REFRESH GPS
     IconButton(
       onPressed: _refreshGPS,
       icon: const Icon(
@@ -4299,52 +4303,53 @@ Future<void> _refreshAgoraPTT() async {
       ),
       tooltip: 'Refresh GPS',
     ),
+
+    const Spacer(),
+
+    // ==================================================
+    // MICROPHONE
+    // ==================================================
+    Icon(
+      _microphoneEnabled
+          ? Icons.mic
+          : Icons.mic_off,
+      size: 18,
+      color: _microphoneEnabled
+          ? Colors.green
+          : Colors.red,
+    ),
+
+    const SizedBox(
+      width: 5,
+    ),
+
+    Text(
+      _microphoneEnabled
+          ? 'Microphone Aktif'
+          : 'Microphone Tidak Aktif',
+      style: TextStyle(
+        fontSize: 12,
+        color: _microphoneEnabled
+            ? Colors.green
+            : Colors.red,
+      ),
+    ),
+
+    IconButton(
+      onPressed: _refreshAgoraPTT,
+      icon: const Icon(
+        Icons.refresh,
+        size: 18,
+      ),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(
+        minWidth: 30,
+        minHeight: 30,
+      ),
+      tooltip: 'Refresh Microphone',
+    ),
   ],
 ),
-                          const Spacer(),
-
-Icon(
-  _microphoneEnabled
-      ? Icons.mic
-      : Icons.mic_off,
-  size: 18,
-  color: _microphoneEnabled
-      ? Colors.green
-      : Colors.red,
-),
-
-const SizedBox(
-  width: 5,
-),
-
-Text(
-  _microphoneEnabled
-      ? 'Microphone Aktif'
-      : 'Microphone Tidak Aktif',
-  style: TextStyle(
-    fontSize: 12,
-    color: _microphoneEnabled
-        ? Colors.green
-        : Colors.red,
-  ),
-),
-
-// REFRESH MICROPHONE
-IconButton(
-  onPressed: _refreshAgoraPTT,
-  icon: const Icon(
-    Icons.refresh,
-    size: 18,
-  ),
-  padding: EdgeInsets.zero,
-  constraints: const BoxConstraints(
-    minWidth: 30,
-    minHeight: 30,
-  ),
-  tooltip: 'Refresh Microphone',
-                        ),
-                      ],
-                    ),
 
                     const SizedBox(
                       height:
