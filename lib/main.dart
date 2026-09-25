@@ -928,8 +928,6 @@ Future<void> _refreshGPS() async {
     'overview': 'full',
     'geometries': 'geojson',
     'alternatives': 'true',
-    if (_isMotorMode)
-      'exclude': 'motorway',
   },
 );
 
