@@ -4207,114 +4207,140 @@ Future<void> _refreshAgoraPTT() async {
           ),
           
           // ==================================================
-          // CENTER LOCATION
-          // ==================================================
+// CENTER LOCATION
+// ==================================================
 
-          Positioned(
-            right:
-                15,
-            bottom:
-                175,
-            child:
-                FloatingActionButton.small(
-              heroTag:
-                  'center_location',
-              backgroundColor:
-                  Colors.black87,
-              foregroundColor:
-                  Colors.white,
-              onPressed:
-                  _centerMyLocation,
-              child:
-                  const Icon(
-                Icons.my_location,
+Positioned(
+  right: 12,
+  bottom: 70,
+  child: FloatingActionButton.small(
+    heroTag: 'center_location',
+    backgroundColor: Colors.black87,
+    foregroundColor: Colors.white,
+    onPressed: _centerMyLocation,
+    child: const Icon(
+      Icons.my_location,
+      size: 18,
+    ),
+  ),
+),
+
+          // ==================================================
+// TOP STATUS
+// ==================================================
+
+Positioned(
+  left: 10,
+  right: 10,
+  top: 10,
+  child: Card(
+    color: Colors.black.withOpacity(0.78),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 5,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // ==================================================
+              // GPS
+              // ==================================================
+
+              Icon(
+                _locationReady
+                    ? Icons.gps_fixed
+                    : Icons.gps_off,
+                color: _locationReady
+                    ? Colors.green
+                    : Colors.red,
+                size: 16,
               ),
-            ),
-          ),
 
-          // ==================================================
-          // TOP STATUS
-          // ==================================================
-
-          Positioned(
-            left:
-                10,
-            right:
-                10,
-            top:
-                10,
-            child:
-                Card(
-              color:
-                  Colors.black
-                      .withOpacity(
-                0.78,
+              const SizedBox(
+                width: 5,
               ),
-              child:
-                  Padding(
-                padding:
-                    const EdgeInsets.all(
-                  12,
+
+              Text(
+                _gpsStatus,
+                style: const TextStyle(
+                  fontSize: 11,
                 ),
-                child:
-                    Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    Row(
+              ),
+
+              IconButton(
+                onPressed: _refreshGPS,
+                icon: const Icon(
+                  Icons.refresh,
+                  size: 16,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 26,
+                  minHeight: 26,
+                ),
+                tooltip: 'Refresh GPS',
+              ),
+
+              const Spacer(),
+
+    // ==================================================
+// MICROPHONE
+// ==================================================
+
+Icon(
+  _microphoneEnabled
+      ? Icons.mic
+      : Icons.mic_off,
+  size: 16,
+  color: _microphoneEnabled
+      ? Colors.green
+      : Colors.red,
+),
+
+const SizedBox(
+  width: 4,
+),
+
+Text(
+  _microphoneEnabled
+      ? 'Microphone Aktif'
+      : 'Microphone Tidak Aktif',
+  style: TextStyle(
+    fontSize: 11,
+    color: _microphoneEnabled
+        ? Colors.green
+        : Colors.red,
+  ),
+),
+
+IconButton(
+  onPressed: _refreshAgoraPTT,
+  icon: const Icon(
+    Icons.refresh,
+    size: 16,
+  ),
+  padding: EdgeInsets.zero,
+  constraints: const BoxConstraints(
+    minWidth: 26,
+    minHeight: 26,
+  ),
+  tooltip: 'Refresh Microphone',
+),
+],
+),
+
+                    const SizedBox(
+  height: 4,
+),
+
+Row(
   children: [
-    // ==================================================
-    // GPS
-    // ==================================================
-    Icon(
-      _locationReady
-          ? Icons.gps_fixed
-          : Icons.gps_off,
-      color: _locationReady
-          ? Colors.green
-          : Colors.red,
-      size: 18,
-    ),
-
-    const SizedBox(
-      width: 7,
-    ),
-
-    Text(
-      _gpsStatus,
-      style: const TextStyle(
-        fontSize: 12,
-      ),
-    ),
-
-    IconButton(
-      onPressed: _refreshGPS,
-      icon: const Icon(
-        Icons.refresh,
-        size: 18,
-      ),
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(
-        minWidth: 30,
-        minHeight: 30,
-      ),
-      tooltip: 'Refresh GPS',
-    ),
-
-    const Spacer(),
-
-    // ==================================================
-    // MICROPHONE
-    // ==================================================
-    Icon(
-      _microphoneEnabled
-          ? Icons.mic
-          : Icons.mic_off,
-      size: 18,
-      color: _microphoneEnabled
-          ? Colors.green
-          : Colors.red,
+    const Icon(
+      Icons.directions_car,
+      size: 16,
     ),
 
     const SizedBox(
@@ -4322,534 +4348,357 @@ Future<void> _refreshAgoraPTT() async {
     ),
 
     Text(
-      _microphoneEnabled
-          ? 'Microphone Aktif'
-          : 'Microphone Tidak Aktif',
-      style: TextStyle(
-        fontSize: 12,
-        color: _microphoneEnabled
-            ? Colors.green
-            : Colors.red,
+      _routeDistanceKm > 0
+          ? '${_routeDistanceKm.toStringAsFixed(1)} km'
+          : '${_distanceInKm.toStringAsFixed(1)} km',
+      style: const TextStyle(
+        fontSize: 11,
       ),
     ),
 
-    IconButton(
-      onPressed: _refreshAgoraPTT,
-      icon: const Icon(
-        Icons.refresh,
-        size: 18,
-      ),
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(
-        minWidth: 30,
-        minHeight: 30,
-      ),
-      tooltip: 'Refresh Microphone',
+    const SizedBox(
+      width: 10,
     ),
+
+    const Icon(
+      Icons.access_time,
+      size: 16,
+    ),
+
+    const SizedBox(
+      width: 4,
+    ),
+
+    Text(
+      _routeDurationMinutes > 0
+          ? '${_routeDurationMinutes.round()} min'
+          : '$_estimatedMinutes min',
+      style: const TextStyle(
+        fontSize: 11,
+      ),
+    ),
+
+    const Spacer(),
+
+    if (_isLoadingRoute)
+      const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+        ),
+      ),
   ],
 ),
 
-                    const SizedBox(
-                      height:
-                          8,
-                    ),
+if (_activeTouringId != null) ...[
+  const SizedBox(
+    height: 5,
+  ),
 
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons
-                              .directions_car,
-                          size:
-                              18,
-                        ),
-                        const SizedBox(
-                          width:
-                              7,
-                        ),
-                        Text(
-                          _routeDistanceKm >
-                                  0
-                              ? '${_routeDistanceKm.toStringAsFixed(1)} km'
-                              : '${_distanceInKm.toStringAsFixed(1)} km',
-                        ),
-                        const SizedBox(
-                          width:
-                              15,
-                        ),
-                        const Icon(
-                          Icons
-                              .access_time,
-                          size:
-                              18,
-                        ),
-                        const SizedBox(
-                          width:
-                              5,
-                        ),
-                        Text(
-                          _routeDurationMinutes >
-                                  0
-                              ? '${_routeDurationMinutes.round()} min'
-                              : '$_estimatedMinutes min',
-                        ),
-                        const Spacer(),
-                        if (_isLoadingRoute)
-                          const SizedBox(
-                            width:
-                                18,
-                            height:
-                                18,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth:
-                                  2,
-                            ),
-                          ),
-                      ],
-                    ),
+  Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 5,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.blue.withOpacity(0.25),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(
+        color: Colors.blue,
+      ),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.groups,
+          size: 16,
+          color: Colors.blue,
+        ),
 
-                    if (_activeTouringId !=
-                        null) ...[
-                      const SizedBox(
-                        height:
-                            9,
-                      ),
-                      Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              10,
-                          vertical:
-                              7,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              Colors.blue
-                                  .withOpacity(
-                            0.25,
-                          ),
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            8,
-                          ),
-                          border:
-                              Border.all(
-                            color:
-                                Colors.blue,
-                          ),
-                        ),
-                        child:
-                            Row(
-                          children: [
-                            const Icon(
-                              Icons.groups,
-                              size:
-                                  18,
-                              color:
-                                  Colors.blue,
-                            ),
-                            const SizedBox(
-                              width:
-                                  8,
-                            ),
-                            Expanded(
-                              child:
-                                  Text(
-                                _activeTouringName ??
-                                    'Touring',
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              _activeTouringCode ??
-                                  '',
-                              style:
-                                  const TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
-                                letterSpacing:
-                                    2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+        const SizedBox(
+          width: 6,
+        ),
+
+        Expanded(
+          child: Text(
+            _activeTouringName ?? 'Touring',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+
+        Text(
+          _activeTouringCode ?? '',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        ),
+      ],
+    ),
+  ),
+],
+
+          // ==================================================
+// MAP PICKING BANNER
+// ==================================================
+
+if (_mapPickingMode)
+  Positioned(
+    left: 12,
+    right: 12,
+    bottom: 68,
+    child: Card(
+      color: Colors.orange.withOpacity(0.95),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.touch_app,
+              color: Colors.black,
+              size: 18,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _pickingTarget == 'start'
+                    ? 'Tap map untuk memilih titik kumpul'
+                    : 'Tap map untuk memilih destinasi',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _mapPickingMode = false;
+                  _pickingTarget = '';
+                });
+              },
+              icon: const Icon(
+                Icons.close,
+                color: Colors.black,
+                size: 18,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minWidth: 30,
+                minHeight: 30,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+
+          // ==================================================
+// PTT ACTIVE
+// ==================================================
+
+if (_isTalking)
+  Positioned(
+    left: 12,
+    bottom: 68,
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.mic,
+            color: Colors.white,
+            size: 16,
           ),
+          SizedBox(width: 5),
+          Text(
+            'Transmisi Suara Aktif...',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
 
           // ==================================================
-          // MAP PICKING BANNER
-          // ==================================================
+// WATERMARK
+// ==================================================
 
-          if (_mapPickingMode)
-            Positioned(
-              left:
-                  20,
-              right:
-                  20,
-              bottom:
-                  155,
-              child:
-                  Card(
+Positioned(
+  right: 10,
+  bottom: 72,
+  child: Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 7,
+      vertical: 3,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.black.withOpacity(0.65),
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: const Text(
+      'Created by Mr. Ted',
+      style: TextStyle(
+        fontSize: 10,
+        color: Colors.white,
+      ),
+    ),
+  ),
+),
+
+// ==================================================
+// BOTTOM CONTROL
+// ==================================================
+
+Positioned(
+  left: 12,
+  right: 12,
+  bottom: 12,
+  child: Row(
+    children: [
+
+      // ==================================================
+      // PTT BUTTON
+      // ==================================================
+
+      GestureDetector(
+        onLongPressStart: (_) {
+          _startTalking();
+        },
+        onLongPressEnd: (_) {
+          _stopTalking();
+        },
+        onLongPressCancel: () {
+          _stopTalking();
+        },
+        child: Container(
+          width: 90,
+          height: 45,
+          decoration: BoxDecoration(
+            color: _isTalking
+                ? Colors.red
+                : Colors.black87,
+            borderRadius:
+                BorderRadius.circular(10),
+            border: Border.all(
+              color: _isTalking
+                  ? Colors.redAccent
+                  : Colors.grey,
+            ),
+            boxShadow: [
+              BoxShadow(
                 color:
-                    Colors.orange
-                        .withOpacity(
-                  0.95,
-                ),
-                child:
-                    Padding(
-                  padding:
-                      const EdgeInsets.all(
-                    10,
-                  ),
-                  child:
-                      Row(
-                    children: [
-                      const Icon(
-                        Icons.touch_app,
-                        color:
-                            Colors.black,
-                      ),
-                      const SizedBox(
-                        width:
-                            8,
-                      ),
-                      Expanded(
-                        child:
-                            Text(
-                          _pickingTarget ==
-                                  'start'
-                              ? 'Tap map untuk memilih titik kumpul'
-                              : 'Tap map untuk memilih destinasi',
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.black,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed:
-                            () {
-                          setState(() {
-                            _mapPickingMode =
-                                false;
-                            _pickingTarget =
-                                '';
-                          });
-                        },
-                        icon:
-                            const Icon(
-                          Icons.close,
-                          color:
-                              Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
+                    Colors.black.withOpacity(0.3),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              Icon(
+                _isTalking
+                    ? Icons.mic
+                    : Icons.mic_none,
+                color: _isTalking
+                    ? Colors.white
+                    : Colors.greenAccent,
+                size: 19,
+              ),
+              const SizedBox(
+                width: 5,
+              ),
+              Text(
+                _isTalking
+                    ? 'BICARA'
+                    : 'PTT',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+
+      const SizedBox(
+        width: 8,
+      ),
+
+      // ==================================================
+      // START / STOP
+      // ==================================================
+
+      Expanded(
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _isTouring
+                ? Colors.red
+                : Colors.green,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(
+              0,
+              45,
             ),
-
-          // ==================================================
-          // PTT ACTIVE
-          // ==================================================
-
-          if (_isTalking)
-            Positioned(
-              left:
-                  20,
-              bottom:
-                  150,
-              child:
-                  Container(
-                padding:
-                    const EdgeInsets
-                        .symmetric(
-                  horizontal:
-                      12,
-                  vertical:
-                      7,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.red,
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                    20,
-                  ),
-                ),
-                child:
-                    const Row(
-                  mainAxisSize:
-                      MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.mic,
-                      color:
-                          Colors.white,
-                      size:
-                          18,
-                    ),
-                    SizedBox(
-                      width:
-                          6,
-                    ),
-                    Text(
-                      'Transmisi Suara Aktif...',
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.white,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
             ),
-
-          // ==================================================
-          // WATERMARK
-          // ==================================================
-
-          Positioned(
-            right:
-                10,
-            bottom:
-                92,
-            child:
-                Container(
-              padding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal:
-                    8,
-                vertical:
-                    4,
-              ),
-              decoration:
-                  BoxDecoration(
-                color:
-                    Colors.black
-                        .withOpacity(
-                  0.65,
-                ),
-                borderRadius:
-                    BorderRadius
-                        .circular(
-                  5,
-                ),
-              ),
-              child:
-                  const Text(
-                'Created by Mr. Ted',
-                style:
-                    TextStyle(
-                  fontSize:
-                      11,
-                  color:
-                      Colors.white,
-                ),
-              ),
+            shape:
+                RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(10),
             ),
           ),
-
-          // ==================================================
-          // BOTTOM CONTROL
-          // ==================================================
-
-          Positioned(
-            left:
-                20,
-            right:
-                20,
-            bottom:
-                20,
-            child:
-                Row(
-              children: [
-                // ==================================================
-                // PTT BUTTON
-                // ==================================================
-
-                GestureDetector(
-                  onLongPressStart:
-                      (_) {
-                    _startTalking();
-                  },
-                  onLongPressEnd:
-                      (_) {
-                    _stopTalking();
-                  },
-                  onLongPressCancel:
-                      () {
-                    _stopTalking();
-                  },
-                  child:
-                      Container(
-                    width:
-                        115,
-                    height:
-                        60,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          _isTalking
-                              ? Colors
-                                  .red
-                              : Colors
-                                  .black87,
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        12,
-                      ),
-                      border:
-                          Border.all(
-                        color:
-                            _isTalking
-                                ? Colors
-                                    .redAccent
-                                : Colors
-                                    .grey,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors
-                              .black
-                              .withOpacity(
-                            0.3,
-                          ),
-                          blurRadius:
-                              8,
-                        ),
-                      ],
-                    ),
-                    child:
-                        Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment
-                              .center,
-                      children: [
-                        Icon(
-                          _isTalking
-                              ? Icons.mic
-                              : Icons
-                                  .mic_none,
-                          color:
-                              _isTalking
-                                  ? Colors
-                                      .white
-                                  : Colors
-                                      .greenAccent,
-                          size:
-                              22,
-                        ),
-                        const SizedBox(
-                          height:
-                              2,
-                        ),
-                        Text(
-                          _isTalking
-                              ? 'BICARA'
-                              : 'PTT',
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.white,
-                            fontSize:
-                                11,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(
-                  width:
-                      12,
-                ),
-
-                // ==================================================
-                // START / STOP
-                // ==================================================
-
-                Expanded(
-                  child:
-                      ElevatedButton
-                          .icon(
-                    style:
-                        ElevatedButton
-                            .styleFrom(
-                      backgroundColor:
-                          _isTouring
-                              ? Colors
-                                  .red
-                              : Colors
-                                  .green,
-                      foregroundColor:
-                          Colors.white,
-                      minimumSize:
-                          const Size(
-                        0,
-                        60,
-                      ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          12,
-                        ),
-                      ),
-                    ),
-                    onPressed:
-                        _isTouring
-                            ? _stopTouring
-                            : _startTouring,
-                    icon:
-                        Icon(
-                      _isTouring
-                          ? Icons.stop
-                          : Icons
-                              .play_arrow,
-                    ),
-                    label:
-                        Text(
-                      _isTouring
-                          ? 'STOP TOURING'
-                          : 'START TOURING',
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          onPressed: _isTouring
+              ? _stopTouring
+              : _startTouring,
+          icon: Icon(
+            _isTouring
+                ? Icons.stop
+                : Icons.play_arrow,
+            size: 20,
+          ),
+          label: Text(
+            _isTouring
+                ? 'STOP TOURING'
+                : 'START TOURING',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
             ),
           ),
+        ),
+      ),
+    ],
+  ),
+),
         ],
       ),
     );
