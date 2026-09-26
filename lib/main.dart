@@ -723,7 +723,6 @@ class _MapScreenState extends State {
       final response = await http.get(uri);
 
       if (response.statusCode != 200) {
-        throw Exception(
           throw Exception(
   'OSRM HTTP ${response.statusCode}: ${response.body}',
 );
