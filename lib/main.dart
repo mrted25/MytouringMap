@@ -2269,85 +2269,96 @@ class _MapScreenState extends State {
       appBar: AppBar(
         title: const Text('Touring Map'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Buat Touring',
-            onPressed: _showCreateTouringDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.route),
-            tooltip: 'Atur Rute',
-            onPressed: _showSetRouteDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.login),
-            tooltip: 'Join Touring',
-            onPressed: _showJoinTouringDialog,
-          ),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.groups),
-                tooltip: 'Anggota',
-                onPressed: _showMemberList,
-              ),
-              if (_activeTouringId != null)
-                Positioned(
-                  right: 4,
-                  top: 5,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '${_groupMembers.length + 1}',
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          IconButton(
-            icon: Icon(
-              _isMotorMode ? Icons.two_wheeler : Icons.directions_car,
-            ),
-            tooltip: 'Ganti Kendaraan',
-            onPressed: () async {
-              setState(() {
-                _isMotorMode = !_isMotorMode;
-                _myVehicleType = _isMotorMode ? 'Motor' : 'SUV';
-              });
+  IconButton(
+    icon: const Icon(Icons.add_circle_outline),
+    tooltip: 'Buat Touring',
+    onPressed: _showCreateTouringDialog,
+  ),
 
-              if (_activeTouringId != null) {
-                await _saveMyMember();
-                await _saveTouringSession();
-              }
-            },
+  IconButton(
+    icon: const Icon(Icons.route),
+    tooltip: 'Atur Rute',
+    onPressed: _showSetRouteDialog,
+  ),
+
+  IconButton(
+    icon: const Icon(Icons.login),
+    tooltip: 'Join Touring',
+    onPressed: _showJoinTouringDialog,
+  ),
+
+  Stack(
+    alignment: Alignment.center,
+    children: [
+      IconButton(
+        icon: const Icon(Icons.groups),
+        tooltip: 'Anggota',
+        onPressed: _showMemberList,
+      ),
+
+      if (_activeTouringId != null)
+        Positioned(
+          right: 4,
+          top: 5,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+              color: Colors.red,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '${_groupMembers.length + 1}',
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-          PopupMenuButton<String>(
-  icon: const Icon(Icons.layers),
-  tooltip: 'Map Style',
-  onSelected: (String key) {
-    setState(() {
-      _selectedTile = key;
-    });
-  },
-  itemBuilder: (BuildContext context) {
-    return _tileProviders.keys
-        .map<PopupMenuEntry<String>>((String key) {
-      return PopupMenuItem<String>(
-        value: key,
-        child: Text(key),
-      );
-    }).toList();
-  },
-),
+        ),
+    ],
+  ),
+
+  IconButton(
+    icon: Icon(
+      _isMotorMode
+          ? Icons.two_wheeler
+          : Icons.directions_car,
+    ),
+    tooltip: 'Ganti Kendaraan',
+    onPressed: () async {
+      setState(() {
+        _isMotorMode = !_isMotorMode;
+        _myVehicleType =
+            _isMotorMode ? 'Motor' : 'SUV';
+      });
+
+      if (_activeTouringId != null) {
+        await _saveMyMember();
+        await _saveTouringSession();
+      }
+    },
+  ),
+
+  PopupMenuButton<String>(
+    icon: const Icon(Icons.layers),
+    tooltip: 'Map Style',
+    onSelected: (String key) {
+      setState(() {
+        _selectedTile = key;
+      });
+    },
+    itemBuilder: (BuildContext context) {
+      return _tileProviders.keys.map(
+        (key) {
+          return PopupMenuItem<String>(
+            value: key,
+            child: Text(key),
+          );
+        },
+      ).toList();
+    },
+  ),
+],
 
       // ======================================================
       // BODY
