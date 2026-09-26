@@ -681,7 +681,7 @@ class _MapScreenState extends State {
     );
   }
 
-  // ==========================================================
+    // ==========================================================
   // OSRM ROUTE
   // ==========================================================
 
@@ -695,7 +695,11 @@ class _MapScreenState extends State {
 
     if (fromCurrentLocation) {
       if (_currentPosition == null) return;
-      start = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+
+      start = LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
     } else {
       start = _titikKumpul;
     }
@@ -708,24 +712,25 @@ class _MapScreenState extends State {
       });
     }
 
-    final uri = Uri.parse(
-  'https://router.project-osrm.org/route/v1/driving/'
-  '${start.longitude},${start.latitude};'
-  '${_destinasi!.longitude},${_destinasi!.latitude}',
-).replace(
-  queryParameters: {
-    'overview': 'full',
-    'geometries': 'geojson',
-    'alternatives': 'true',
-  },
-);
+    try {
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${start.longitude},${start.latitude};'
+        '${_destinasi!.longitude},${_destinasi!.latitude}',
+      ).replace(
+        queryParameters: {
+          'overview': 'full',
+          'geometries': 'geojson',
+          'alternatives': 'true',
+        },
+      );
 
       final response = await http.get(uri);
 
       if (response.statusCode != 200) {
-          throw Exception(
-  'OSRM HTTP ${response.statusCode}: ${response.body}',
-);
+        throw Exception(
+          'OSRM HTTP ${response.statusCode}: ${response.body}',
+        );
       }
 
       final data = jsonDecode(response.body);
@@ -749,10 +754,14 @@ class _MapScreenState extends State {
           );
         }).toList();
 
-        final distanceMeters = (route['distance'] as num).toDouble();
-        final durationSeconds = (route['duration'] as num).toDouble();
+        final distanceMeters =
+            (route['distance'] as num).toDouble();
 
-        String label = i == 0 ? 'Rute tercepat' : 'Alternatif $i';
+        final durationSeconds =
+            (route['duration'] as num).toDouble();
+
+        final String label =
+            i == 0 ? 'Rute tercepat' : 'Alternatif $i';
 
         options.add(
           RouteOption(
@@ -773,6 +782,7 @@ class _MapScreenState extends State {
       }
 
       int selectedIndex = _selectedRouteIndex;
+
       if (selectedIndex >= options.length) {
         selectedIndex = 0;
       }
@@ -798,7 +808,9 @@ class _MapScreenState extends State {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mencari rute: $e')),
+          SnackBar(
+            content: Text('Gagal mencari rute: $e'),
+          ),
         );
       }
     }
