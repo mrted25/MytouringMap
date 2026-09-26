@@ -26,7 +26,7 @@ import 'services/touring_service.dart';
 const String agoraAppId = '398d30b96cae43aeac064c7a0fa9add8';
 const String channelName = 'touring_room_1';
 
-Future<void> main() async {
+Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(
@@ -60,7 +60,7 @@ class MyApp extends StatelessWidget {
 
 class RouteOption {
   final String label;
-  final List<LatLng> points;
+  final List points;
   final double distanceKm;
   final double durationMinutes;
 
@@ -96,10 +96,10 @@ class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State {
   final MapController _mapController = MapController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -118,26 +118,19 @@ class _MapScreenState extends State<MapScreen> {
   bool _isRestoringSession = false;
 
   // ==========================================================
-  // ROUTE
+  // ROUTE (NULLABLE - DIBUAT KOSONG SECARA DEFAULT)
   // ==========================================================
 
-  LatLng _titikKumpul = const LatLng(
-    -6.175392,
-    106.827153,
-  );
+  LatLng? _titikKumpul;
+  LatLng? _destinasi;
 
-  LatLng _destinasi = const LatLng(
-    -6.229728,
-    106.846548,
-  );
-
-  List<LatLng> _routePoints = [];
+  List _routePoints = [];
 
   double _routeDistanceKm = 0;
   double _routeDurationMinutes = 0;
 
   bool _isLoadingRoute = false;
-  List<RouteOption> _routeOptions = [];
+  List _routeOptions = [];
 
   int _selectedRouteIndex = 0;
 
@@ -154,7 +147,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Position? _currentPosition;
 
-  StreamSubscription<Position>? _positionStream;
+  StreamSubscription? _positionStream;
 
   double _distanceInKm = 0;
   int _estimatedMinutes = 0;
@@ -170,7 +163,7 @@ class _MapScreenState extends State<MapScreen> {
 
   bool _isTouring = false;
 
-  DateTime? _touringStartTime;
+  DateTime? _touringStartTime = null;
 
   String? _activeTouringId;
   String? _activeTouringCode;
@@ -181,7 +174,7 @@ class _MapScreenState extends State<MapScreen> {
   String _myName = 'Road Captain';
   String _myVehicleType = 'Motor';
 
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  StreamSubscription>>?
       _membersSubscription;
 
   DateTime? _lastMemberUpload;
@@ -190,7 +183,7 @@ class _MapScreenState extends State<MapScreen> {
   // MEMBERS
   // ==========================================================
 
-  final List<Member> _groupMembers = [];
+  final List _groupMembers = [];
 
   // ==========================================================
   // VEHICLE
@@ -202,13 +195,11 @@ class _MapScreenState extends State<MapScreen> {
   // MAP TILE
   // ==========================================================
 
-  final Map<String, String> _tileProviders = {
-    'Standard':
-        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  final Map _tileProviders = {
+    'Standard': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     'Dark Mode':
         'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    'Humanitarian':
-        'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    'Humanitarian': 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
   };
 
   String _selectedTile = 'Standard';
@@ -228,25 +219,25 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  _initializeGPS();
+    _initializeGPS();
 
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    if (!kIsWeb) {
-      await _initAgoraPTT();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!kIsWeb) {
+        await _initAgoraPTT();
+      }
 
-    await _restoreTouringSession();
-  });
-}
+      await _restoreTouringSession();
+    });
+  }
 
   // ==========================================================
   // SAVE LOCAL TOURING SESSION
   // ==========================================================
 
-  Future<void> _saveTouringSession() async {
+  Future _saveTouringSession() async {
     if (_activeTouringId == null) {
       return;
     }
@@ -254,44 +245,15 @@ void initState() {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      await prefs.setString(
-        _prefTouringId,
-        _activeTouringId!,
-      );
-
-      await prefs.setString(
-        _prefTouringCode,
-        _activeTouringCode ?? '',
-      );
-
-      await prefs.setString(
-        _prefTouringName,
-        _activeTouringName ?? '',
-      );
-
-      await prefs.setBool(
-        _prefIsCaptain,
-        _isCaptain,
-      );
-
-      await prefs.setString(
-        _prefMyName,
-        _myName,
-      );
-
-      await prefs.setString(
-        _prefVehicleType,
-        _myVehicleType,
-      );
-
-      await prefs.setBool(
-        _prefIsTouring,
-        _isTouring,
-      );
+      await prefs.setString(_prefTouringId, _activeTouringId!);
+      await prefs.setString(_prefTouringCode, _activeTouringCode ?? '');
+      await prefs.setString(_prefTouringName, _activeTouringName ?? '');
+      await prefs.setBool(_prefIsCaptain, _isCaptain);
+      await prefs.setString(_prefMyName, _myName);
+      await prefs.setString(_prefVehicleType, _myVehicleType);
+      await prefs.setBool(_prefIsTouring, _isTouring);
     } catch (e) {
-      debugPrint(
-        'Save touring session error: $e',
-      );
+      debugPrint('Save touring session error: $e');
     }
   }
 
@@ -299,7 +261,7 @@ void initState() {
   // CLEAR LOCAL TOURING SESSION
   // ==========================================================
 
-  Future<void> _clearTouringSession() async {
+  Future _clearTouringSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
@@ -311,9 +273,7 @@ void initState() {
       await prefs.remove(_prefVehicleType);
       await prefs.remove(_prefIsTouring);
     } catch (e) {
-      debugPrint(
-        'Clear touring session error: $e',
-      );
+      debugPrint('Clear touring session error: $e');
     }
   }
 
@@ -321,7 +281,7 @@ void initState() {
   // RESTORE TOURING SESSION
   // ==========================================================
 
-  Future<void> _restoreTouringSession() async {
+  Future _restoreTouringSession() async {
     if (_isRestoringSession || !mounted) {
       return;
     }
@@ -330,89 +290,52 @@ void initState() {
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      final touringId = prefs.getString(_prefTouringId);
 
-      final touringId =
-          prefs.getString(_prefTouringId);
-
-      if (touringId == null ||
-          touringId.isEmpty) {
+      if (touringId == null || touringId.isEmpty) {
         return;
       }
 
-      final touringDoc = await _firestore
-          .collection('tourings')
-          .doc(touringId)
-          .get();
+      final touringDoc =
+          await _firestore.collection('tourings').doc(touringId).get();
 
-      // Touring sudah tidak ada.
       if (!touringDoc.exists) {
         await _clearTouringSession();
         return;
       }
 
       final data = touringDoc.data();
-
       if (data == null) {
         await _clearTouringSession();
         return;
       }
 
-      final rootStatus =
-          data['status']?.toString() ?? 'waiting';
-
-      // Kalau touring sudah selesai,
-      // hapus sesi lokal supaya tidak muncul lagi.
+      final rootStatus = data['status']?.toString() ?? 'waiting';
       if (rootStatus == 'finished') {
         await _clearTouringSession();
         return;
       }
 
-      final savedCode =
-          prefs.getString(_prefTouringCode) ??
-              data['code']?.toString() ??
-              '';
+      final savedCode = prefs.getString(_prefTouringCode) ??
+          data['code']?.toString() ??
+          '';
+      final savedName = prefs.getString(_prefTouringName) ??
+          data['name']?.toString() ??
+          'Touring';
+      final savedIsCaptain = prefs.getBool(_prefIsCaptain) ?? false;
+      final savedMyName = prefs.getString(_prefMyName) ??
+          (savedIsCaptain ? 'Road Captain' : 'Member');
+      final savedVehicle = prefs.getString(_prefVehicleType) ?? 'Motor';
+      final savedIsTouring = prefs.getBool(_prefIsTouring) ?? false;
 
-      final savedName =
-          prefs.getString(_prefTouringName) ??
-              data['name']?.toString() ??
-              'Touring';
-
-      final savedIsCaptain =
-          prefs.getBool(_prefIsCaptain) ??
-              false;
-
-      final savedMyName =
-          prefs.getString(_prefMyName) ??
-              (savedIsCaptain
-                  ? 'Road Captain'
-                  : 'Member');
-
-      final savedVehicle =
-          prefs.getString(_prefVehicleType) ??
-              'Motor';
-
-      final savedIsTouring =
-          prefs.getBool(_prefIsTouring) ??
-              false;
-
-      final startLat =
-          (data['startLat'] as num?)?.toDouble();
-
-      final startLng =
-          (data['startLng'] as num?)?.toDouble();
-
-      final destinationLat =
-          (data['destinationLat'] as num?)
-              ?.toDouble();
-
-      final destinationLng =
-          (data['destinationLng'] as num?)
-              ?.toDouble();
+      final startLat = (data['startLat'] as num?)?.toDouble();
+      final startLng = (data['startLng'] as num?)?.toDouble();
+      final destinationLat = (data['destinationLat'] as num?)?.toDouble();
+      final destinationLng = (data['destinationLng'] as num?)?.toDouble();
 
       if (!mounted) return;
 
-      final shouldContinue =
-          await _showResumeTouringDialog(
+      final shouldContinue = await _showResumeTouringDialog(
         touringName: savedName,
         touringCode: savedCode,
         isCaptain: savedIsCaptain,
@@ -420,7 +343,6 @@ void initState() {
       );
 
       if (!shouldContinue) {
-        // Tandai diri sebagai keluar dari sesi.
         setState(() {
           _activeTouringId = touringId;
           _activeTouringCode = savedCode;
@@ -428,16 +350,11 @@ void initState() {
           _isCaptain = savedIsCaptain;
           _myName = savedMyName;
           _myVehicleType = savedVehicle;
-
-          _isMotorMode =
-              savedVehicle.toLowerCase() == 'motor' ||
+          _isMotorMode = savedVehicle.toLowerCase() == 'motor' ||
               savedVehicle.toLowerCase() == 'scooter';
         });
 
-        await _saveMyMember(
-          status: 'Left',
-        );
-
+        await _saveMyMember(status: 'Left');
         await _clearTouringSession();
 
         if (mounted) {
@@ -450,7 +367,6 @@ void initState() {
             _groupMembers.clear();
           });
         }
-
         return;
       }
 
@@ -462,42 +378,26 @@ void initState() {
         _myName = savedMyName;
         _myVehicleType = savedVehicle;
         _isTouring = savedIsTouring;
-
-        _isMotorMode =
-            savedVehicle.toLowerCase() == 'motor' ||
+        _isMotorMode = savedVehicle.toLowerCase() == 'motor' ||
             savedVehicle.toLowerCase() == 'scooter';
 
-        if (startLat != null &&
-            startLng != null) {
-          _titikKumpul = LatLng(
-            startLat,
-            startLng,
-          );
+        if (startLat != null && startLng != null) {
+          _titikKumpul = LatLng(startLat, startLng);
         }
 
-        if (destinationLat != null &&
-            destinationLng != null) {
-          _destinasi = LatLng(
-            destinationLat,
-            destinationLng,
-          );
+        if (destinationLat != null && destinationLng != null) {
+          _destinasi = LatLng(destinationLat, destinationLng);
         }
       });
 
-      _subscribeToTouringMembers(
-        touringId,
-      );
+      _subscribeToTouringMembers(touringId);
 
       await _saveMyMember(
-        status: _isTouring
-            ? 'Riding'
-            : 'Joined',
+        status: _isTouring ? 'Riding' : 'Joined',
       );
 
-      if (_currentPosition != null) {
-        await _getRoadRoute(
-          fromCurrentLocation: _isTouring,
-        );
+      if (_currentPosition != null && _destinasi != null) {
+        await _getRoadRoute(fromCurrentLocation: _isTouring);
       }
 
       if (mounted) {
@@ -512,9 +412,7 @@ void initState() {
         );
       }
     } catch (e) {
-      debugPrint(
-        'Restore touring session error: $e',
-      );
+      debugPrint('Restore touring session error: $e');
     } finally {
       _isRestoringSession = false;
     }
@@ -524,104 +422,63 @@ void initState() {
   // RESUME DIALOG
   // ==========================================================
 
-  Future<bool> _showResumeTouringDialog({
+  Future _showResumeTouringDialog({
     required String touringName,
     required String touringCode,
     required bool isCaptain,
     required bool isTouring,
   }) async {
-    if (!mounted) {
-      return false;
-    }
+    if (!mounted) return false;
 
-    final result =
-        await showDialog<bool>(
+    final result = await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
           title: Row(
             children: [
-              const Icon(
-                Icons.restore,
-                color: Colors.blue,
-              ),
-              const SizedBox(
-                width: 10,
-              ),
-              const Expanded(
-                child: Text(
-                  'Touring Sebelumnya Ditemukan',
-                ),
-              ),
+              const Icon(Icons.restore, color: Colors.blue),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('Touring Sebelumnya Ditemukan')),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                touringName.isEmpty
-                    ? 'Touring'
-                    : touringName,
+                touringName.isEmpty ? 'Touring' : touringName,
                 style: const TextStyle(
                   fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(
-                    Icons.confirmation_number,
-                    size: 18,
-                  ),
-                  const SizedBox(
-                    width: 8,
-                  ),
-                  Text(
-                    'Kode: $touringCode',
-                  ),
+                  const Icon(Icons.confirmation_number, size: 18),
+                  const SizedBox(width: 8),
+                  Text('Kode: $touringCode'),
                 ],
               ),
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Icon(
                     isCaptain
-                        ? Icons
-                            .admin_panel_settings
+                        ? Icons.admin_panel_settings
                         : Icons.person,
                     size: 18,
                   ),
-                  const SizedBox(
-                    width: 8,
-                  ),
-                  Text(
-                    isCaptain
-                        ? 'Road Captain'
-                        : 'Anggota',
-                  ),
+                  const SizedBox(width: 8),
+                  Text(isCaptain ? 'Road Captain' : 'Anggota'),
                 ],
               ),
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(
-                    Icons.directions_car,
-                    size: 18,
-                  ),
-                  const SizedBox(
-                    width: 8,
-                  ),
+                  const Icon(Icons.directions_car, size: 18),
+                  const SizedBox(width: 8),
                   Text(
                     isTouring
                         ? 'Status: Sedang Touring'
@@ -629,39 +486,19 @@ void initState() {
                   ),
                 ],
               ),
-              const SizedBox(
-                height: 18,
-              ),
-              const Text(
-                'Data touring masih tersimpan di perangkat ini.',
-              ),
+              const SizedBox(height: 18),
+              const Text('Data touring masih tersimpan di perangkat ini.'),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child: const Text(
-                'Keluar dari Sesi',
-              ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keluar dari Sesi'),
             ),
             ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              icon: const Icon(
-                Icons.play_arrow,
-              ),
-              label: const Text(
-                'Lanjutkan Touring',
-              ),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Lanjutkan Touring'),
             ),
           ],
         );
@@ -675,10 +512,9 @@ void initState() {
   // GPS
   // ==========================================================
 
-  Future<void> _initializeGPS() async {
+  Future _initializeGPS() async {
     try {
-      final serviceEnabled =
-          await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
       if (!serviceEnabled) {
         if (mounted) {
@@ -686,174 +522,138 @@ void initState() {
             _gpsStatus = 'GPS mati';
           });
         }
-
         return;
       }
 
-      LocationPermission permission =
-          await Geolocator.checkPermission();
+      LocationPermission permission = await Geolocator.checkPermission();
 
-      if (permission ==
-          LocationPermission.denied) {
-        permission =
-            await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
       }
 
-      if (permission ==
-              LocationPermission.denied ||
-          permission ==
-              LocationPermission.deniedForever) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         if (mounted) {
           setState(() {
-            _gpsStatus =
-                'Izin GPS ditolak';
+            _gpsStatus = 'Izin GPS ditolak';
           });
         }
-
         return;
       }
 
-      final position =
-          await Geolocator.getCurrentPosition(
-        desiredAccuracy:
-            LocationAccuracy.high,
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
       );
 
       _handlePosition(position);
 
-      _positionStream =
-          Geolocator.getPositionStream(
-        locationSettings:
-            const LocationSettings(
-          accuracy:
-              LocationAccuracy.high,
+      // LANGSUNG GESER PETA KE LOKASI GPS PERTAMA KALI KETEMU
+      _mapController.move(
+        LatLng(position.latitude, position.longitude),
+        16,
+      );
+
+      _positionStream = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
           distanceFilter: 5,
         ),
-      ).listen(
-        _handlePosition,
-      );
+      ).listen(_handlePosition);
 
       if (mounted) {
         setState(() {
-          _gpsStatus =
-              'GPS aktif';
+          _gpsStatus = 'GPS aktif';
           _locationReady = true;
         });
       }
     } catch (e) {
-      debugPrint(
-        'GPS error: $e',
-      );
+      debugPrint('GPS error: $e');
 
       if (mounted) {
         setState(() {
-          _gpsStatus =
-              'GPS error';
+          _gpsStatus = 'GPS error';
         });
       }
     }
   }
 
   // ==========================================================
-// REFRESH / RECONNECT GPS
-// ==========================================================
+  // REFRESH / RECONNECT GPS
+  // ==========================================================
 
-Future<void> _refreshGPS() async {
-  try {
-    if (mounted) {
-      setState(() {
-        _locationReady = false;
-        _gpsStatus = 'Menghubungkan GPS...';
-      });
-    }
+  Future _refreshGPS() async {
+    try {
+      if (mounted) {
+        setState(() {
+          _locationReady = false;
+          _gpsStatus = 'Menghubungkan GPS...';
+        });
+      }
 
-    // Hentikan stream GPS lama.
-    await _positionStream?.cancel();
-    _positionStream = null;
+      await _positionStream?.cancel();
+      _positionStream = null;
 
-    // Tunggu sebentar agar stream lama benar-benar dilepas.
-    await Future.delayed(
-      const Duration(
-        milliseconds: 300,
-      ),
-    );
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _initializeGPS();
+    } catch (e) {
+      debugPrint('GPS refresh error: $e');
 
-    // Jalankan kembali seluruh proses GPS:
-    // cek service → permission → posisi → stream.
-    await _initializeGPS();
-  } catch (e) {
-    debugPrint(
-      'GPS refresh error: $e',
-    );
-
-    if (mounted) {
-      setState(() {
-        _locationReady = false;
-        _gpsStatus = 'GPS error';
-      });
+      if (mounted) {
+        setState(() {
+          _locationReady = false;
+          _gpsStatus = 'GPS error';
+        });
+      }
     }
   }
-}
 
-  void _handlePosition(
-    Position position,
-  ) {
+  void _handlePosition(Position position) {
     if (!mounted) return;
 
-    if (position.heading >= 0 &&
-        position.speed > 1.0) {
-      _heading =
-          position.heading;
+    if (position.heading >= 0 && position.speed > 1.0) {
+      _heading = position.heading;
     }
 
     setState(() {
-      _currentPosition =
-          position;
+      _currentPosition = position;
 
-      _distanceInKm =
-          Geolocator.distanceBetween(
-            position.latitude,
-            position.longitude,
-            _destinasi.latitude,
-            _destinasi.longitude,
-          ) /
-          1000;
+      if (_destinasi != null) {
+        _distanceInKm = Geolocator.distanceBetween(
+              position.latitude,
+              position.longitude,
+              _destinasi!.latitude,
+              _destinasi!.longitude,
+            ) /
+            1000;
 
-      _estimatedMinutes =
-          (_distanceInKm / 40 * 60)
-              .round();
+        _estimatedMinutes = (_distanceInKm / 40 * 60).round();
+      }
 
-      _gpsStatus =
-          'GPS aktif';
-
-      _locationReady =
-          true;
+      _gpsStatus = 'GPS aktif';
+      _locationReady = true;
     });
 
-    if (_activeTouringId !=
-        null) {
-      _updateMyMemberLocation(
-        position,
-      );
+    _mapController.move(
+      LatLng(position.latitude, position.longitude),
+      _mapController.camera.zoom,
+    );
+
+    if (_activeTouringId != null) {
+      _updateMyMemberLocation(position);
     }
 
-    if (_isTouring) {
-      if (_lastRoutePosition ==
-          null) {
+    if (_isTouring && _destinasi != null) {
+      if (_lastRoutePosition == null) {
         _getRoadRoute();
       } else {
-        final distance =
-            Geolocator.distanceBetween(
-          _lastRoutePosition!
-              .latitude,
-          _lastRoutePosition!
-              .longitude,
+        final distance = Geolocator.distanceBetween(
+          _lastRoutePosition!.latitude,
+          _lastRoutePosition!.longitude,
           position.latitude,
           position.longitude,
         );
 
-        if (distance >=
-            _rerouteDistanceMeters) {
+        if (distance >= _rerouteDistanceMeters) {
           _getRoadRoute();
         }
       }
@@ -866,16 +666,9 @@ Future<void> _refreshGPS() async {
 
   void _centerMyLocation() {
     if (_currentPosition == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lokasi GPS belum tersedia.',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi GPS belum tersedia.')),
       );
-
       return;
     }
 
@@ -892,230 +685,153 @@ Future<void> _refreshGPS() async {
   // OSRM ROUTE
   // ==========================================================
 
-  Future<void> _getRoadRoute({
-  bool fromCurrentLocation = true,
-}) async {
-  if (_isLoadingRoute) return;
+  Future _getRoadRoute({
+    bool fromCurrentLocation = true,
+  }) async {
+    if (_isLoadingRoute) return;
+    if (_destinasi == null) return;
 
-  LatLng start;
-
-  if (fromCurrentLocation) {
-    if (_currentPosition == null) {
-      return;
-    }
-
-    start = LatLng(
-      _currentPosition!.latitude,
-      _currentPosition!.longitude,
-    );
-  } else {
-    start = _titikKumpul;
-  }
-
-  if (mounted) {
-    setState(() {
-      _isLoadingRoute = true;
-    });
-  }
-
-  try {
-    final uri = Uri.parse(
-  'https://router.project-osrm.org/route/v1/driving/'
-  '${start.longitude},${start.latitude};'
-  '${_destinasi.longitude},${_destinasi.latitude}',
-).replace(
-  queryParameters: {
-    'overview': 'full',
-    'geometries': 'geojson',
-    'alternatives': 'true',
-  },
-);
-
-debugPrint('OSRM URL: $uri');
-    
-    final response = await http.get(uri);
-
-if (response.statusCode != 200) {
-  debugPrint(
-    'OSRM response: ${response.body}',
-  );
-
-  throw Exception(
-    'OSRM HTTP ${response.statusCode}: '
-    '${response.body}',
-  );
-}
-
-    final data = jsonDecode(response.body);
-
-    final routes = data['routes'] as List?;
-
-    if (routes == null || routes.isEmpty) {
-      throw Exception(
-        'Rute tidak ditemukan',
-      );
-    }
-
-    final options = <RouteOption>[];
-
-    for (
-      int i = 0;
-      i < routes.length && i < 3;
-      i++
-    ) {
-      final route =
-          routes[i] as Map<String, dynamic>;
-
-      final geometry =
-          route['geometry']
-              as Map<String, dynamic>;
-
-      final coordinates =
-          geometry['coordinates'] as List;
-
-      final points =
-          coordinates.map<LatLng>((item) {
-        return LatLng(
-          (item[1] as num).toDouble(),
-          (item[0] as num).toDouble(),
-        );
-      }).toList();
-
-      final distanceMeters =
-          (route['distance'] as num)
-              .toDouble();
-
-      final durationSeconds =
-          (route['duration'] as num)
-              .toDouble();
-
-      String label;
-
-      if (i == 0) {
-        label = 'Rute tercepat';
-      } else {
-        label = 'Alternatif $i';
-      }
-
-      options.add(
-        RouteOption(
-          label: label,
-          points: points,
-          distanceKm:
-              distanceMeters / 1000,
-          durationMinutes:
-              durationSeconds / 60,
-        ),
-      );
-    }
-
-    if (options.isEmpty) {
-      throw Exception(
-        'Tidak ada pilihan rute.',
-      );
-    }
+    LatLng? start;
 
     if (fromCurrentLocation) {
-      _lastRoutePosition =
-          _currentPosition;
+      if (_currentPosition == null) return;
+      start = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+    } else {
+      start = _titikKumpul;
     }
 
-    // Pertahankan pilihan rute sebelumnya
-    // apabila masih tersedia.
-    int selectedIndex =
-        _selectedRouteIndex;
-
-    if (selectedIndex >=
-        options.length) {
-      selectedIndex = 0;
-    }
-
-    final selected =
-        options[selectedIndex];
+    if (start == null) return;
 
     if (mounted) {
       setState(() {
-        _routeOptions = options;
-
-        _selectedRouteIndex =
-            selectedIndex;
-
-        _routePoints =
-            selected.points;
-
-        _routeDistanceKm =
-            selected.distanceKm;
-
-        _routeDurationMinutes =
-            selected.durationMinutes;
-
-        _isLoadingRoute = false;
+        _isLoadingRoute = true;
       });
     }
-  } catch (e) {
-    debugPrint(
-      'Route error: $e',
-    );
 
-    if (mounted) {
-      setState(() {
-        _isLoadingRoute = false;
-      });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal mencari rute: $e',
-          ),
-        ),
+    try {
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '\({start.longitude},\){start.latitude};'
+        '\({_destinasi!.longitude},\){_destinasi!.latitude}',
+      ).replace(
+        queryParameters: {
+          'overview': 'full',
+          'geometries': 'geojson',
+          'alternatives': 'true',
+        },
       );
+
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'OSRM HTTP \({response.statusCode}:\){response.body}',
+        );
+      }
+
+      final data = jsonDecode(response.body);
+      final routes = data['routes'] as List?;
+
+      if (routes == null || routes.isEmpty) {
+        throw Exception('Rute tidak ditemukan');
+      }
+
+      final options = [];
+
+      for (int i = 0; i < routes.length && i < 3; i++) {
+        final route = routes[i] as Map;
+        final geometry = route['geometry'] as Map;
+        final coordinates = geometry['coordinates'] as List;
+
+        final points = coordinates.map((item) {
+          return LatLng(
+            (item[1] as num).toDouble(),
+            (item[0] as num).toDouble(),
+          );
+        }).toList();
+
+        final distanceMeters = (route['distance'] as num).toDouble();
+        final durationSeconds = (route['duration'] as num).toDouble();
+
+        String label = i == 0 ? 'Rute tercepat' : 'Alternatif $i';
+
+        options.add(
+          RouteOption(
+            label: label,
+            points: points,
+            distanceKm: distanceMeters / 1000,
+            durationMinutes: durationSeconds / 60,
+          ),
+        );
+      }
+
+      if (options.isEmpty) {
+        throw Exception('Tidak ada pilihan rute.');
+      }
+
+      if (fromCurrentLocation) {
+        _lastRoutePosition = _currentPosition;
+      }
+
+      int selectedIndex = _selectedRouteIndex;
+      if (selectedIndex >= options.length) {
+        selectedIndex = 0;
+      }
+
+      final selected = options[selectedIndex];
+
+      if (mounted) {
+        setState(() {
+          _routeOptions = options;
+          _selectedRouteIndex = selectedIndex;
+          _routePoints = selected.points;
+          _routeDistanceKm = selected.distanceKm;
+          _routeDurationMinutes = selected.durationMinutes;
+          _isLoadingRoute = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Route error: $e');
+
+      if (mounted) {
+        setState(() {
+          _isLoadingRoute = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mencari rute: $e')),
+        );
+      }
     }
   }
-}
 
   // ==========================================================
   // START TOURING
   // ==========================================================
 
-  Future<void> _startTouring() async {
+  Future _startTouring() async {
     if (_activeTouringId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Buat atau join touring terlebih dahulu.',
-          ),
+          content: Text('Buat atau join touring terlebih dahulu.'),
         ),
       );
-
       return;
     }
 
     if (_currentPosition == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lokasi GPS belum tersedia.',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi GPS belum tersedia.')),
       );
-
       return;
     }
 
     setState(() {
       _isTouring = true;
-      _touringStartTime =
-          DateTime.now();
+      _touringStartTime = DateTime.now();
     });
 
-    // Captain mengubah status group menjadi active.
-    if (_isCaptain &&
-        _activeTouringId != null) {
+    if (_isCaptain && _activeTouringId != null) {
       try {
         await _firestore
             .collection('tourings')
@@ -1123,40 +839,22 @@ if (response.statusCode != 200) {
             .set(
           {
             'status': 'active',
-            'startedAt':
-                FieldValue
-                    .serverTimestamp(),
+            'startedAt': FieldValue.serverTimestamp(),
           },
-          SetOptions(
-            merge: true,
-          ),
+          SetOptions(merge: true),
         );
       } catch (e) {
-        debugPrint(
-          'Update touring active error: $e',
-        );
+        debugPrint('Update touring active error: $e');
       }
     }
 
-    await _getRoadRoute(
-      fromCurrentLocation: true,
-    );
-
-    await _saveMyMember(
-      status: 'Riding',
-    );
-
+    await _getRoadRoute(fromCurrentLocation: true);
+    await _saveMyMember(status: 'Riding');
     await _saveTouringSession();
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Touring dimulai',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Touring dimulai')),
       );
     }
   }
@@ -1165,26 +863,17 @@ if (response.statusCode != 200) {
   // STOP TOURING
   // ==========================================================
 
-  Future<void> _stopTouring() async {
+  Future _stopTouring() async {
     setState(() {
       _isTouring = false;
     });
 
-    await _saveMyMember(
-      status: 'Stopped',
-    );
-
+    await _saveMyMember(status: 'Stopped');
     await _saveTouringSession();
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Touring dihentikan sementara',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Touring dihentikan sementara')),
       );
     }
   }
@@ -1193,22 +882,15 @@ if (response.statusCode != 200) {
   // FINISH TOURING
   // ==========================================================
 
-  Future<void> _finishTouring() async {
-    final touringId =
-        _activeTouringId;
+  Future _finishTouring() async {
+    final touringId = _activeTouringId;
+    if (touringId == null) return;
 
-    if (touringId == null) {
-      return;
-    }
-
-    final confirmed =
-        await showDialog<bool>(
+    final confirmed = await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
-            'Selesaikan Touring?',
-          ),
+          title: const Text('Selesaikan Touring?'),
           content: const Text(
             'Touring akan ditandai sebagai selesai. '
             'Setelah selesai, sesi ini tidak akan ditawarkan lagi '
@@ -1216,109 +898,57 @@ if (response.statusCode != 200) {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child:
-                  const Text('Batal'),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
             ),
             ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              icon: const Icon(
-                Icons.flag,
-              ),
-              label:
-                  const Text(
-                'Selesaikan',
-              ),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.flag),
+              label: const Text('Selesaikan'),
             ),
           ],
         );
       },
     );
 
-    if (confirmed != true) {
-      return;
-    }
+    if (confirmed != true) return;
 
     try {
       setState(() {
         _isTouring = false;
       });
 
-      await _saveMyMember(
-        status: 'Finished',
-      );
+      await _saveMyMember(status: 'Finished');
 
       if (_isCaptain) {
-        await _firestore
-            .collection('tourings')
-            .doc(touringId)
-            .set(
+        await _firestore.collection('tourings').doc(touringId).set(
           {
             'status': 'finished',
-            'finishedAt':
-                FieldValue
-                    .serverTimestamp(),
+            'finishedAt': FieldValue.serverTimestamp(),
           },
-          SetOptions(
-            merge: true,
-          ),
+          SetOptions(merge: true),
         );
       }
 
       await _clearTouringSession();
-
-      await _membersSubscription
-          ?.cancel();
+      await _membersSubscription?.cancel();
 
       if (mounted) {
         setState(() {
-          _activeTouringId =
-              null;
-          _activeTouringCode =
-              null;
-          _activeTouringName =
-              null;
+          _activeTouringId = null;
+          _activeTouringCode = null;
+          _activeTouringName = null;
           _isCaptain = false;
           _isTouring = false;
           _groupMembers.clear();
         });
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Touring telah diselesaikan.',
-            ),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Touring telah diselesaikan.')),
         );
       }
     } catch (e) {
-      debugPrint(
-        'Finish touring error: $e',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Gagal menyelesaikan touring: $e',
-            ),
-          ),
-        );
-      }
+      debugPrint('Finish touring error: $e');
     }
   }
 
@@ -1326,93 +956,56 @@ if (response.statusCode != 200) {
   // LEAVE TOURING - MEMBER
   // ==========================================================
 
-  Future<void> _leaveTouring() async {
-    final touringId =
-        _activeTouringId;
+  Future _leaveTouring() async {
+    final touringId = _activeTouringId;
+    if (touringId == null) return;
 
-    if (touringId == null) {
-      return;
-    }
-
-    final confirmed =
-        await showDialog<bool>(
+    final confirmed = await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text(
-            'Keluar dari Touring?',
-          ),
+          title: const Text('Keluar dari Touring?'),
           content: const Text(
             'Anda akan keluar dari sesi touring di perangkat ini. '
             'Touring tetap berjalan untuk anggota lainnya.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child:
-                  const Text('Batal'),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              child:
-                  const Text('Keluar'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Keluar'),
             ),
           ],
         );
       },
     );
 
-    if (confirmed != true) {
-      return;
-    }
+    if (confirmed != true) return;
 
     try {
-      await _saveMyMember(
-        status: 'Left',
-      );
-
+      await _saveMyMember(status: 'Left');
       await _clearTouringSession();
-
-      await _membersSubscription
-          ?.cancel();
+      await _membersSubscription?.cancel();
 
       if (mounted) {
         setState(() {
-          _activeTouringId =
-              null;
-          _activeTouringCode =
-              null;
-          _activeTouringName =
-              null;
+          _activeTouringId = null;
+          _activeTouringCode = null;
+          _activeTouringName = null;
           _isCaptain = false;
           _isTouring = false;
           _groupMembers.clear();
         });
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Anda telah keluar dari touring.',
-            ),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Anda telah keluar dari touring.')),
         );
       }
     } catch (e) {
-      debugPrint(
-        'Leave touring error: $e',
-      );
+      debugPrint('Leave touring error: $e');
     }
   }
 
@@ -1420,15 +1013,10 @@ if (response.statusCode != 200) {
   // NOMINATIM SEARCH
   // ==========================================================
 
-  Future<List<Map<String, dynamic>>> _searchPlaces(
-    String query,
-  ) async {
-    final trimmed =
-        query.trim();
+  Future>> _searchPlaces(String query) async {
+    final trimmed = query.trim();
 
-    if (trimmed.isEmpty) {
-      return [];
-    }
+    if (trimmed.isEmpty) return [];
 
     final uri = Uri.https(
       'nominatim.openstreetmap.org',
@@ -1443,42 +1031,26 @@ if (response.statusCode != 200) {
       },
     );
 
-    final response =
-        await http.get(
+    final response = await http.get(
       uri,
       headers: const {
         'User-Agent':
             'TouringMap/1.0 (Flutter OpenStreetMap Nominatim client)',
-        'Accept':
-            'application/json',
+        'Accept': 'application/json',
       },
     );
 
-    if (response.statusCode !=
-        200) {
-      throw Exception(
-        'Pencarian tempat gagal '
-        '(HTTP ${response.statusCode})',
-      );
+    if (response.statusCode != 200) {
+      throw Exception('Pencarian tempat gagal (HTTP ${response.statusCode})');
     }
 
-    final decoded =
-        jsonDecode(
-      response.body,
-    );
+    final decoded = jsonDecode(response.body);
 
-    if (decoded is! List) {
-      return [];
-    }
+    if (decoded is! List) return [];
 
     return decoded
-        .whereType<Map>()
-        .map<Map<String, dynamic>>(
-          (item) =>
-              Map<String, dynamic>.from(
-            item,
-          ),
-        )
+        .whereType()
+        .map>((item) => Map.from(item))
         .toList();
   }
 
@@ -1486,32 +1058,19 @@ if (response.statusCode != 200) {
   // SEARCH PLACE DIALOG
   // ==========================================================
 
-  Future<void> _showPlaceSearchDialog(
-    String target,
-  ) async {
-    final controller =
-        TextEditingController();
-
-    List<Map<String, dynamic>>
-        results = [];
-
+  Future _showPlaceSearchDialog(String target) async {
+    final controller = TextEditingController();
+    List> results = [];
     bool isSearching = false;
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (
-            context,
-            setDialogState,
-          ) {
-            Future<void> doSearch() async {
-              final query =
-                  controller.text.trim();
-
-              if (query.isEmpty) {
-                return;
-              }
+          builder: (context, setDialogState) {
+            Future doSearch() async {
+              final query = controller.text.trim();
+              if (query.isEmpty) return;
 
               setDialogState(() {
                 isSearching = true;
@@ -1519,34 +1078,22 @@ if (response.statusCode != 200) {
               });
 
               try {
-                final searchResults =
-                    await _searchPlaces(
-                  query,
-                );
+                final searchResults = await _searchPlaces(query);
 
                 if (context.mounted) {
                   setDialogState(() {
-                    results =
-                        searchResults;
-                    isSearching =
-                        false;
+                    results = searchResults;
+                    isSearching = false;
                   });
                 }
               } catch (e) {
                 if (context.mounted) {
                   setDialogState(() {
-                    isSearching =
-                        false;
+                    isSearching = false;
                   });
 
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Gagal mencari tempat: $e',
-                      ),
-                    ),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mencari tempat: $e')),
                   );
                 }
               }
@@ -1556,17 +1103,10 @@ if (response.statusCode != 200) {
               title: Row(
                 children: [
                   Icon(
-                    target == 'start'
-                        ? Icons.location_on
-                        : Icons.flag,
-                    color:
-                        target == 'start'
-                            ? Colors.green
-                            : Colors.red,
+                    target == 'start' ? Icons.location_on : Icons.flag,
+                    color: target == 'start' ? Colors.green : Colors.red,
                   ),
-                  const SizedBox(
-                    width: 8,
-                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       target == 'start'
@@ -1577,178 +1117,98 @@ if (response.statusCode != 200) {
                 ],
               ),
               content: SizedBox(
-                width:
-                    double.maxFinite,
+                width: double.maxFinite,
                 height: 420,
                 child: Column(
                   children: [
                     TextField(
-                      controller:
-                          controller,
+                      controller: controller,
                       autofocus: true,
-                      textInputAction:
-                          TextInputAction.search,
-                      onSubmitted: (_) {
-                        doSearch();
-                      },
-                      decoration:
-                          InputDecoration(
-                        hintText:
-                            'Contoh: Indomaret Cibinong',
-                        prefixIcon:
-                            const Icon(
-                          Icons.search,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => doSearch(),
+                      decoration: InputDecoration(
+                        hintText: 'Contoh: Indomaret Cibinong',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          onPressed: isSearching ? null : doSearch,
+                          icon: const Icon(Icons.search),
                         ),
-                        suffixIcon:
-                            IconButton(
-                          onPressed:
-                              isSearching
-                                  ? null
-                                  : doSearch,
-                          icon:
-                              const Icon(
-                            Icons.search,
-                          ),
-                        ),
-                        border:
-                            const OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(
-                      height: 12,
-                    ),
+                    const SizedBox(height: 12),
                     if (isSearching)
                       const Padding(
-                        padding:
-                            EdgeInsets.all(
-                          20,
-                        ),
-                        child:
-                            CircularProgressIndicator(),
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator(),
                       )
                     else if (results.isEmpty)
                       const Expanded(
                         child: Center(
                           child: Text(
                             'Ketik nama tempat lalu tekan cari.',
-                            textAlign:
-                                TextAlign.center,
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       )
                     else
                       Expanded(
-                        child:
-                            ListView.separated(
-                          itemCount:
-                              results.length,
-                          separatorBuilder:
-                              (
-                            context,
-                            index,
-                          ) =>
-                                  const Divider(
-                            height: 1,
-                          ),
-                          itemBuilder:
-                              (
-                            context,
-                            index,
-                          ) {
-                            final result =
-                                results[index];
-
+                        child: ListView.separated(
+                          itemCount: results.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final result = results[index];
                             final displayName =
-                                result[
-                                        'display_name']
-                                    ?.toString() ??
-                                'Tempat tanpa nama';
+                                result['display_name']?.toString() ??
+                                    'Tempat tanpa nama';
 
-                            final lat =
-                                double.tryParse(
-                              result[
-                                      'lat']
-                                  ?.toString() ??
-                                  '',
+                            final lat = double.tryParse(
+                              result['lat']?.toString() ?? '',
                             );
-
-                            final lon =
-                                double.tryParse(
-                              result[
-                                      'lon']
-                                  ?.toString() ??
-                                  '',
+                            final lon = double.tryParse(
+                              result['lon']?.toString() ?? '',
                             );
 
                             return ListTile(
-                              leading:
-                                  Icon(
-                                target ==
-                                        'start'
-                                    ? Icons
-                                        .location_on
+                              leading: Icon(
+                                target == 'start'
+                                    ? Icons.location_on
                                     : Icons.flag,
-                                color:
-                                    target ==
-                                            'start'
-                                        ? Colors
-                                            .green
-                                        : Colors
-                                            .red,
+                                color: target == 'start'
+                                    ? Colors.green
+                                    : Colors.red,
                               ),
-                              title:
-                                  Text(
+                              title: Text(
                                 displayName,
-                                maxLines:
-                                    3,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              onTap:
-                                  lat == null ||
-                                          lon ==
-                                              null
-                                      ? null
-                                      : () {
-                                          final point =
-                                              LatLng(
-                                            lat,
-                                            lon,
-                                          );
+                              onTap: lat == null || lon == null
+                                  ? null
+                                  : () {
+                                      final point = LatLng(lat, lon);
 
-                                          if (target ==
-                                              'start') {
-                                            setState(
-                                              () {
-                                                _titikKumpul =
-                                                    point;
-                                              },
-                                            );
-                                          } else {
-                                            setState(
-                                              () {
-                                                _destinasi =
-                                                    point;
-                                              },
-                                            );
-                                          }
+                                      if (target == 'start') {
+                                        setState(() {
+                                          _titikKumpul = point;
+                                        });
+                                      } else {
+                                        setState(() {
+                                          _destinasi = point;
+                                        });
+                                      }
 
-                                          Navigator.pop(
-                                            context,
-                                          );
+                                      Navigator.pop(context);
 
-                                          _getRoadRoute(
-                                            fromCurrentLocation:
-                                                _isTouring,
-                                          );
+                                      if (_destinasi != null) {
+                                        _getRoadRoute(
+                                          fromCurrentLocation: _isTouring,
+                                        );
+                                      }
 
-                                          _mapController
-                                              .move(
-                                            point,
-                                            16,
-                                          );
-                                        },
+                                      _mapController.move(point, 16);
+                                    },
                             );
                           },
                         ),
@@ -1758,13 +1218,8 @@ if (response.statusCode != 200) {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      context,
-                    );
-                  },
-                  child:
-                      const Text('Tutup'),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Tutup'),
                 ),
               ],
             );
@@ -1780,215 +1235,111 @@ if (response.statusCode != 200) {
   // SET ROUTE
   // ==========================================================
 
-  Future<void> _showSetRouteDialog() async {
+  Future _showSetRouteDialog() async {
     await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title:
-              const Text(
-            'Atur Rute',
-          ),
-          content:
-              SingleChildScrollView(
+          title: const Text('Atur Rute'),
+          content: SingleChildScrollView(
             child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading:
-                      const Icon(
-                    Icons.location_on,
-                    color:
-                        Colors.green,
-                  ),
-                  title:
-                      const Text(
+                  leading: const Icon(Icons.location_on, color: Colors.green),
+                  title: const Text(
                     'Titik Kumpul',
-                    style:
-                        TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle:
-                      Text(
-                    '${_titikKumpul.latitude.toStringAsFixed(6)}, '
-                    '${_titikKumpul.longitude.toStringAsFixed(6)}',
+                  subtitle: Text(
+                    _titikKumpul != null
+                        ? '${_titikKumpul!.latitude.toStringAsFixed(6)}, '
+                            '${_titikKumpul!.longitude.toStringAsFixed(6)}'
+                        : 'Belum ditentukan',
                   ),
-                  trailing:
-                      IconButton(
-                    tooltip:
-                        'Cari tempat',
-                    icon:
-                        const Icon(
-                      Icons.search,
-                    ),
-                    onPressed:
-                        () {
-                      Navigator.pop(
-                        context,
-                      );
-
-                      _showPlaceSearchDialog(
-                        'start',
-                      );
+                  trailing: IconButton(
+                    tooltip: 'Cari tempat',
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showPlaceSearchDialog('start');
                     },
                   ),
                   onTap: () {
-                    Navigator.pop(
-                      context,
-                    );
-
+                    Navigator.pop(context);
                     setState(() {
-                      _mapPickingMode =
-                          true;
-                      _pickingTarget =
-                          'start';
+                      _mapPickingMode = true;
+                      _pickingTarget = 'start';
                     });
-
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content:
-                            Text(
-                          'Tap map untuk memilih titik kumpul.',
-                        ),
+                        content: Text('Tap map untuk memilih titik kumpul.'),
                       ),
                     );
                   },
                 ),
                 const Divider(),
                 ListTile(
-                  leading:
-                      const Icon(
-                    Icons.flag,
-                    color:
-                        Colors.red,
-                  ),
-                  title:
-                      const Text(
+                  leading: const Icon(Icons.flag, color: Colors.red),
+                  title: const Text(
                     'Destinasi',
-                    style:
-                        TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle:
-                      Text(
-                    '${_destinasi.latitude.toStringAsFixed(6)}, '
-                    '${_destinasi.longitude.toStringAsFixed(6)}',
+                  subtitle: Text(
+                    _destinasi != null
+                        ? '${_destinasi!.latitude.toStringAsFixed(6)}, '
+                            '${_destinasi!.longitude.toStringAsFixed(6)}'
+                        : 'Belum ditentukan',
                   ),
-                  trailing:
-                      IconButton(
-                    tooltip:
-                        'Cari tempat',
-                    icon:
-                        const Icon(
-                      Icons.search,
-                    ),
-                    onPressed:
-                        () {
-                      Navigator.pop(
-                        context,
-                      );
-
-                      _showPlaceSearchDialog(
-                        'destination',
-                      );
+                  trailing: IconButton(
+                    tooltip: 'Cari tempat',
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showPlaceSearchDialog('destination');
                     },
                   ),
                   onTap: () {
-                    Navigator.pop(
-                      context,
-                    );
-
+                    Navigator.pop(context);
                     setState(() {
-                      _mapPickingMode =
-                          true;
-                      _pickingTarget =
-                          'destination';
+                      _mapPickingMode = true;
+                      _pickingTarget = 'destination';
                     });
-
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content:
-                            Text(
-                          'Tap map untuk memilih destinasi.',
-                        ),
+                        content: Text('Tap map untuk memilih destinasi.'),
                       ),
                     );
                   },
                 ),
-                const SizedBox(
-                  height: 12,
-                ),
+                const SizedBox(height: 12),
                 SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      ElevatedButton
-                          .icon(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pop(
-                        context,
-                      );
-
-                      if (_currentPosition !=
-                          null) {
+                      Navigator.pop(context);
+                      if (_currentPosition != null) {
                         setState(() {
-                          _titikKumpul =
-                              LatLng(
-                            _currentPosition!
-                                .latitude,
-                            _currentPosition!
-                                .longitude,
+                          _titikKumpul = LatLng(
+                            _currentPosition!.latitude,
+                            _currentPosition!.longitude,
                           );
                         });
-
-                        _getRoadRoute(
-                          fromCurrentLocation:
-                              _isTouring,
-                        );
+                        if (_destinasi != null) {
+                          _getRoadRoute(fromCurrentLocation: _isTouring);
+                        }
                       } else {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content:
-                                Text(
-                              'Lokasi GPS belum tersedia.',
-                            ),
+                            content: Text('Lokasi GPS belum tersedia.'),
                           ),
                         );
                       }
                     },
-                    icon:
-                        const Icon(
-                      Icons.my_location,
-                    ),
-                    label:
-                        const Text(
+                    icon: const Icon(Icons.my_location),
+                    label: const Text(
                       'Gunakan Lokasi Saya sebagai Titik Kumpul',
                     ),
-                  ),
-                ),
-                const SizedBox(
-                  height: 8,
-                ),
-                const Text(
-                  'Tip: tekan ikon 🔍 untuk mencari tempat berdasarkan nama.',
-                  textAlign:
-                      TextAlign.center,
-                  style:
-                      TextStyle(
-                    fontSize: 12,
-                    color:
-                        Colors.grey,
                   ),
                 ),
               ],
@@ -2003,160 +1354,99 @@ if (response.statusCode != 200) {
   // MAP TAP
   // ==========================================================
 
-  void _handleMapTap(
-    TapPosition tapPosition,
-    LatLng point,
-  ) {
+  void _handleMapTap(TapPosition tapPosition, LatLng point) {
     if (!_mapPickingMode) {
       _selectRouteFromMapTap(point);
       return;
     }
 
-    if (_pickingTarget ==
-        'start') {
+    if (_pickingTarget == 'start') {
       setState(() {
-        _titikKumpul =
-            point;
-        _mapPickingMode =
-            false;
-        _pickingTarget =
-            '';
+        _titikKumpul = point;
+        _mapPickingMode = false;
+        _pickingTarget = '';
       });
-    } else if (_pickingTarget ==
-        'destination') {
+    } else if (_pickingTarget == 'destination') {
       setState(() {
-        _destinasi =
-            point;
-        _mapPickingMode =
-            false;
-        _pickingTarget =
-            '';
+        _destinasi = point;
+        _mapPickingMode = false;
+        _pickingTarget = '';
       });
     }
 
-    _getRoadRoute(
-      fromCurrentLocation:
-          _isTouring,
-    );
+    if (_destinasi != null) {
+      _getRoadRoute(fromCurrentLocation: _isTouring);
+    }
   }
 
   void _selectRouteFromMapTap(LatLng tapPoint) {
-  if (_routeOptions.isEmpty) {
-    return;
-  }
+    if (_routeOptions.isEmpty) return;
 
-  const distance = Distance();
+    const distance = Distance();
+    int? nearestRouteIndex;
+    double nearestDistance = double.infinity;
 
-  int? nearestRouteIndex;
-  double nearestDistance = double.infinity;
+    for (int i = 0; i < _routeOptions.length; i++) {
+      final route = _routeOptions[i];
 
-  for (int i = 0; i < _routeOptions.length; i++) {
-    final route = _routeOptions[i];
+      for (final point in route.points) {
+        final meters = distance.as(LengthUnit.Meter, tapPoint, point);
 
-    for (final point in route.points) {
-      final meters = distance.as(
-        LengthUnit.Meter,
-        tapPoint,
-        point,
-      );
-
-      if (meters < nearestDistance) {
-        nearestDistance = meters;
-        nearestRouteIndex = i;
+        if (meters < nearestDistance) {
+          nearestDistance = meters;
+          nearestRouteIndex = i;
+        }
       }
     }
+
+    if (nearestRouteIndex == null || nearestDistance > 100) return;
+
+    final selected = _routeOptions[nearestRouteIndex];
+
+    if (mounted) {
+      setState(() {
+        _selectedRouteIndex = nearestRouteIndex!;
+        _routePoints = selected.points;
+        _routeDistanceKm = selected.distanceKm;
+        _routeDurationMinutes = selected.durationMinutes;
+      });
+    }
   }
-
-  if (nearestRouteIndex == null ||
-      nearestDistance > 100) {
-    return;
-  }
-
-  final selected =
-      _routeOptions[nearestRouteIndex];
-
-  if (mounted) {
-    setState(() {
-      _selectedRouteIndex =
-          nearestRouteIndex!;
-
-      _routePoints =
-          selected.points;
-
-      _routeDistanceKm =
-          selected.distanceKm;
-
-      _routeDurationMinutes =
-          selected.durationMinutes;
-    });
-  }
-}
 
   // ==========================================================
   // CREATE TOURING
   // ==========================================================
 
-  Future<void> _showCreateTouringDialog() async {
-    final nameController =
-        TextEditingController();
+  Future _showCreateTouringDialog() async {
+    final nameController = TextEditingController();
 
     await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title:
-              const Text(
-            'Buat Touring',
-          ),
-          content:
-              TextField(
-            controller:
-                nameController,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Nama Touring',
-              hintText:
-                  'Contoh: Touring Bogor',
-              border:
-                  OutlineInputBorder(),
+          title: const Text('Buat Touring'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              labelText: 'Nama Touring',
+              hintText: 'Contoh: Touring Bogor',
+              border: OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                );
-              },
-              child:
-                  const Text(
-                'Batal',
-              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
             ),
             ElevatedButton(
               onPressed: () async {
-                final name =
-                    nameController
-                        .text
-                        .trim();
+                final name = nameController.text.trim();
+                if (name.isEmpty) return;
 
-                if (name.isEmpty) {
-                  return;
-                }
-
-                Navigator.pop(
-                  context,
-                );
-
-                await _createTouring(
-                  name,
-                );
+                Navigator.pop(context);
+                await _createTouring(name);
               },
-              child:
-                  const Text(
-                'Buat',
-              ),
+              child: const Text('Buat'),
             ),
           ],
         );
@@ -2166,113 +1456,53 @@ if (response.statusCode != 200) {
     nameController.dispose();
   }
 
-  Future<void> _createTouring(
-    String name,
-  ) async {
+  Future _createTouring(String name) async {
     try {
-      final user =
-          FirebaseAuth.instance
-              .currentUser;
-
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception(
-          'Firebase user belum tersedia.',
-        );
+        throw Exception('Firebase user belum tersedia.');
       }
 
-      final service =
-          TouringService();
+      final service = TouringService();
 
-      final code =
-          await service.createTouring(
+      final code = await service.createTouring(
         name: name,
-        captainId:
-            user.uid,
-        captainName:
-            'Road Captain',
-        startLat:
-            _titikKumpul.latitude,
-        startLng:
-            _titikKumpul.longitude,
-        destinationLat:
-            _destinasi.latitude,
-        destinationLng:
-            _destinasi.longitude,
+        captainId: user.uid,
+        captainName: 'Road Captain',
+        startLat: _titikKumpul?.latitude ?? _currentPosition?.latitude ?? 0,
+        startLng: _titikKumpul?.longitude ?? _currentPosition?.longitude ?? 0,
+        destinationLat: _destinasi?.latitude ?? 0,
+        destinationLng: _destinasi?.longitude ?? 0,
       );
 
-      final query =
-          await _firestore
-              .collection(
-                'tourings',
-              )
-              .where(
-                'code',
-                isEqualTo: code,
-              )
-              .limit(1)
-              .get();
+      final query = await _firestore
+          .collection('tourings')
+          .where('code', isEqualTo: code)
+          .limit(1)
+          .get();
 
       if (query.docs.isEmpty) {
-        throw Exception(
-          'Dokumen touring tidak ditemukan.',
-        );
+        throw Exception('Dokumen touring tidak ditemukan.');
       }
 
-      final touringDoc =
-          query.docs.first;
+      final touringDoc = query.docs.first;
 
       setState(() {
-        _activeTouringId =
-            touringDoc.id;
-
-        _activeTouringCode =
-            code;
-
-        _activeTouringName =
-            name;
-
+        _activeTouringId = touringDoc.id;
+        _activeTouringCode = code;
+        _activeTouringName = name;
         _isCaptain = true;
-
-        _myName =
-            'Road Captain';
-
-        _myVehicleType =
-            _isMotorMode
-                ? 'Motor'
-                : 'SUV';
+        _myName = 'Road Captain';
+        _myVehicleType = _isMotorMode ? 'Motor' : 'SUV';
       });
 
-      // SIMPAN SESI LOKAL
       await _saveTouringSession();
+      await _saveMyMember(status: 'Joined');
+      _subscribeToTouringMembers(touringDoc.id);
 
-      await _saveMyMember(
-        status: 'Joined',
-      );
-
-      _subscribeToTouringMembers(
-        touringDoc.id,
-      );
-
-      await _showTouringCreatedDialog(
-        name,
-        code,
-      );
+      await _showTouringCreatedDialog(name, code);
     } catch (e) {
-      debugPrint(
-        'Create touring error: $e',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Gagal membuat touring: $e',
-            ),
-          ),
-        );
-      }
+      debugPrint('Create touring error: $e');
     }
   }
 
@@ -2280,108 +1510,57 @@ if (response.statusCode != 200) {
   // TOURING CODE DIALOG
   // ==========================================================
 
-  Future<void> _showTouringCreatedDialog(
-    String name,
-    String code,
-  ) async {
+  Future _showTouringCreatedDialog(String name, String code) async {
     await showDialog(
       context: context,
-      barrierDismissible:
-          false,
+      barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title:
-              const Text(
-            'Touring Berhasil Dibuat',
-          ),
-          content:
-              Column(
-            mainAxisSize:
-                MainAxisSize.min,
+          title: const Text('Touring Berhasil Dibuat'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 name,
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(
-                height: 20,
-              ),
-              const Text(
-                'Kode Touring',
-              ),
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 20),
+              const Text('Kode Touring'),
+              const SizedBox(height: 8),
               SelectableText(
                 code,
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   fontSize: 32,
-                  fontWeight:
-                      FontWeight.bold,
-                  letterSpacing:
-                      5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 5,
                 ),
               ),
-              const SizedBox(
-                height: 15,
-              ),
+              const SizedBox(height: 15),
               const Text(
                 'Bagikan kode ini kepada anggota touring.',
-                textAlign:
-                    TextAlign.center,
+                textAlign: TextAlign.center,
               ),
             ],
           ),
           actions: [
             TextButton.icon(
-              onPressed:
-                  () async {
-                await Clipboard.setData(
-                  ClipboardData(
-                    text: code,
-                  ),
-                );
-
-                if (context
-                    .mounted) {
-                  ScaffoldMessenger
-                      .of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text(
-                        'Kode berhasil disalin.',
-                      ),
-                    ),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: code));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Kode berhasil disalin.')),
                   );
                 }
               },
-              icon:
-                  const Icon(
-                Icons.copy,
-              ),
-              label:
-                  const Text(
-                'Copy',
-              ),
+              icon: const Icon(Icons.copy),
+              label: const Text('Copy'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                );
-              },
-              child:
-                  const Text(
-                'OK',
-              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
             ),
           ],
         );
@@ -2393,168 +1572,64 @@ if (response.statusCode != 200) {
   // JOIN TOURING
   // ==========================================================
 
-  Future<void> _showJoinTouringDialog() async {
-    final codeController =
-        TextEditingController();
-
-    final nameController =
-        TextEditingController();
-
-    String selectedVehicle =
-        'Motor';
+  Future _showJoinTouringDialog() async {
+    final codeController = TextEditingController();
+    final nameController = TextEditingController();
+    String selectedVehicle = 'Motor';
 
     await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (
-            context,
-            setDialogState,
-          ) {
+          builder: (context, setDialogState) {
             return AlertDialog(
-              title:
-                  const Text(
-                'Join Touring',
-              ),
-              content:
-                  SingleChildScrollView(
-                child:
-                    Column(
-                  mainAxisSize:
-                      MainAxisSize.min,
+              title: const Text('Join Touring'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
-                      controller:
-                          codeController,
-                      textCapitalization:
-                          TextCapitalization
-                              .characters,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Kode Touring',
-                        hintText:
-                            'Contoh: A7K9P2',
-                        border:
-                            OutlineInputBorder(),
-                        prefixIcon:
-                            Icon(
-                          Icons
-                              .confirmation_number,
-                        ),
+                      controller: codeController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: 'Kode Touring',
+                        hintText: 'Contoh: A7K9P2',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.confirmation_number),
                       ),
                     ),
-                    const SizedBox(
-                      height: 15,
-                    ),
+                    const SizedBox(height: 15),
                     TextField(
-                      controller:
-                          nameController,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Nama Anggota',
-                        hintText:
-                            'Masukkan nama',
-                        border:
-                            OutlineInputBorder(),
-                        prefixIcon:
-                            Icon(
-                          Icons.person,
-                        ),
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama Anggota',
+                        hintText: 'Masukkan nama',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
                       ),
                     ),
-                    const SizedBox(
-                      height: 15,
-                    ),
-                    DropdownButtonFormField<
-                        String>(
-                      value:
-                          selectedVehicle,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Jenis Kendaraan',
-                        border:
-                            OutlineInputBorder(),
+                    const SizedBox(height: 15),
+                    DropdownButtonFormField(
+                      value: selectedVehicle,
+                      decoration: const InputDecoration(
+                        labelText: 'Jenis Kendaraan',
+                        border: OutlineInputBorder(),
                       ),
-                      items:
-                          const [
-                        DropdownMenuItem(
-                          value:
-                              'Motor',
-                          child:
-                              Text(
-                            'Motor',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'Scooter',
-                          child:
-                              Text(
-                            'Scooter',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'Mobil',
-                          child:
-                              Text(
-                            'Mobil',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'SUV',
-                          child:
-                              Text(
-                            'SUV',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'Truck',
-                          child:
-                              Text(
-                            'Truck',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'Van',
-                          child:
-                              Text(
-                            'Van',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'Taxi',
-                          child:
-                              Text(
-                            'Taxi',
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value:
-                              'Sepeda',
-                          child:
-                              Text(
-                            'Sepeda',
-                          ),
-                        ),
+                      items: const [
+                        DropdownMenuItem(value: 'Motor', child: Text('Motor')),
+                        DropdownMenuItem(value: 'Scooter', child: Text('Scooter')),
+                        DropdownMenuItem(value: 'Mobil', child: Text('Mobil')),
+                        DropdownMenuItem(value: 'SUV', child: Text('SUV')),
+                        DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+                        DropdownMenuItem(value: 'Van', child: Text('Van')),
+                        DropdownMenuItem(value: 'Taxi', child: Text('Taxi')),
+                        DropdownMenuItem(value: 'Sepeda', child: Text('Sepeda')),
                       ],
-                      onChanged:
-                          (value) {
-                        if (value !=
-                            null) {
-                          setDialogState(
-                            () {
-                              selectedVehicle =
-                                  value;
-                            },
-                          );
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            selectedVehicle = value;
+                          });
                         }
                       },
                     ),
@@ -2563,67 +1638,33 @@ if (response.statusCode != 200) {
               ),
               actions: [
                 TextButton(
-                  onPressed:
-                      () {
-                    Navigator.pop(
-                      context,
-                    );
-                  },
-                  child:
-                      const Text(
-                    'Batal',
-                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
                 ),
                 ElevatedButton.icon(
-                  onPressed:
-                      () async {
-                    final code =
-                        codeController
-                            .text
-                            .trim()
-                            .toUpperCase();
+                  onPressed: () async {
+                    final code = codeController.text.trim().toUpperCase();
+                    final name = nameController.text.trim();
 
-                    final name =
-                        nameController
-                            .text
-                            .trim();
-
-                    if (code.isEmpty ||
-                        name.isEmpty) {
-                      ScaffoldMessenger
-                          .of(
-                        context,
-                      ).showSnackBar(
+                    if (code.isEmpty || name.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content:
-                              Text(
-                            'Kode dan nama harus diisi.',
-                          ),
+                          content: Text('Kode dan nama harus diisi.'),
                         ),
                       );
-
                       return;
                     }
 
-                    Navigator.pop(
-                      context,
-                    );
+                    Navigator.pop(context);
 
                     await _joinTouring(
                       code: code,
                       name: name,
-                      vehicleType:
-                          selectedVehicle,
+                      vehicleType: selectedVehicle,
                     );
                   },
-                  icon:
-                      const Icon(
-                    Icons.login,
-                  ),
-                  label:
-                      const Text(
-                    'Join',
-                  ),
+                  icon: const Icon(Icons.login),
+                  label: const Text('Join'),
                 ),
               ],
             );
@@ -2636,194 +1677,84 @@ if (response.statusCode != 200) {
     nameController.dispose();
   }
 
-  Future<void> _joinTouring({
+  Future _joinTouring({
     required String code,
     required String name,
     required String vehicleType,
   }) async {
     try {
-      final user =
-          FirebaseAuth.instance
-              .currentUser;
-
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception(
-          'Firebase user belum tersedia.',
-        );
+        throw Exception('Firebase user belum tersedia.');
       }
 
-      final query =
-          await _firestore
-              .collection(
-                'tourings',
-              )
-              .where(
-                'code',
-                isEqualTo: code,
-              )
-              .limit(1)
-              .get();
+      final query = await _firestore
+          .collection('tourings')
+          .where('code', isEqualTo: code)
+          .limit(1)
+          .get();
 
       if (query.docs.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Kode touring tidak ditemukan.',
-              ),
-            ),
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Kode touring tidak ditemukan.')),
           );
         }
-
         return;
       }
 
-      final touringDoc =
-          query.docs.first;
+      final touringDoc = query.docs.first;
+      final data = touringDoc.data();
 
-      final data =
-          touringDoc.data();
-
-      // Jangan join touring yang sudah selesai.
-      if (data['status']
-              ?.toString() ==
-          'finished') {
+      if (data['status']?.toString() == 'finished') {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Touring ini sudah selesai.',
-              ),
-            ),
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Touring ini sudah selesai.')),
           );
         }
-
         return;
       }
 
-      final startLat =
-          (data['startLat']
-                  as num?)
-              ?.toDouble();
-
-      final startLng =
-          (data['startLng']
-                  as num?)
-              ?.toDouble();
-
-      final destinationLat =
-          (data[
-                      'destinationLat']
-                  as num?)
-              ?.toDouble();
-
-      final destinationLng =
-          (data[
-                      'destinationLng']
-                  as num?)
-              ?.toDouble();
+      final startLat = (data['startLat'] as num?)?.toDouble();
+      final startLng = (data['startLng'] as num?)?.toDouble();
+      final destinationLat = (data['destinationLat'] as num?)?.toDouble();
+      final destinationLng = (data['destinationLng'] as num?)?.toDouble();
 
       setState(() {
-        _activeTouringId =
-            touringDoc.id;
+        _activeTouringId = touringDoc.id;
+        _activeTouringCode = data['code']?.toString();
+        _activeTouringName = data['name']?.toString();
+        _isCaptain = false;
+        _myName = name;
+        _myVehicleType = vehicleType;
+        _isMotorMode = vehicleType == 'Motor' || vehicleType == 'Scooter';
 
-        _activeTouringCode =
-            data['code']
-                ?.toString();
-
-        _activeTouringName =
-            data['name']
-                ?.toString();
-
-        _isCaptain =
-            false;
-
-        _myName =
-            name;
-
-        _myVehicleType =
-            vehicleType;
-
-        _isMotorMode =
-            vehicleType ==
-                    'Motor' ||
-                vehicleType ==
-                    'Scooter';
-
-        if (startLat !=
-                null &&
-            startLng !=
-                null) {
-          _titikKumpul =
-              LatLng(
-            startLat,
-            startLng,
-          );
+        if (startLat != null && startLng != null) {
+          _titikKumpul = LatLng(startLat, startLng);
         }
 
-        if (destinationLat !=
-                null &&
-            destinationLng !=
-                null) {
-          _destinasi =
-              LatLng(
-            destinationLat,
-            destinationLng,
-          );
+        if (destinationLat != null && destinationLng != null) {
+          _destinasi = LatLng(destinationLat, destinationLng);
         }
       });
 
-      // SIMPAN SESI LOKAL
       await _saveTouringSession();
+      await _saveMyMember(status: 'Joined');
+      _subscribeToTouringMembers(touringDoc.id);
 
-      await _saveMyMember(
-        status: 'Joined',
-      );
-
-      _subscribeToTouringMembers(
-        touringDoc.id,
-      );
-
-      if (_currentPosition !=
-          null) {
-        await _getRoadRoute(
-          fromCurrentLocation:
-              _isTouring,
-        );
+      if (_currentPosition != null && _destinasi != null) {
+        await _getRoadRoute(fromCurrentLocation: _isTouring);
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text(
-              'Berhasil join ${data['name'] ?? 'Touring'}',
-            ),
+            content: Text('Berhasil join ${data['name'] ?? 'Touring'}'),
           ),
         );
       }
     } catch (e) {
-      debugPrint(
-        'Join touring error: $e',
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Gagal join touring: $e',
-            ),
-          ),
-        );
-      }
+      debugPrint('Join touring error: $e');
     }
   }
 
@@ -2831,69 +1762,35 @@ if (response.statusCode != 200) {
   // SAVE MEMBER
   // ==========================================================
 
-  Future<void> _saveMyMember({
-    String? status,
-  }) async {
-    final touringId =
-        _activeTouringId;
+  Future _saveMyMember({String? status}) async {
+    final touringId = _activeTouringId;
+    final user = FirebaseAuth.instance.currentUser;
 
-    final user =
-        FirebaseAuth.instance
-            .currentUser;
-
-    if (touringId == null ||
-        user == null) {
-      return;
-    }
+    if (touringId == null || user == null) return;
 
     try {
-      final position =
-          _currentPosition;
+      final position = _currentPosition;
 
       await _firestore
-          .collection(
-            'tourings',
-          )
-          .doc(
-            touringId,
-          )
-          .collection(
-            'members',
-          )
-          .doc(
-            user.uid,
-          )
+          .collection('tourings')
+          .doc(touringId)
+          .collection('members')
+          .doc(user.uid)
           .set(
         {
-          'userId':
-              user.uid,
-          'name':
-              _myName,
-          'lat':
-              position?.latitude,
-          'lng':
-              position?.longitude,
-          'heading':
-              _heading,
-          'vehicleType':
-              _myVehicleType,
-          'status':
-              status ??
-                  (_isTouring
-                      ? 'Riding'
-                      : 'Joined'),
-          'updatedAt':
-              FieldValue
-                  .serverTimestamp(),
+          'userId': user.uid,
+          'name': _myName,
+          'lat': position?.latitude,
+          'lng': position?.longitude,
+          'heading': _heading,
+          'vehicleType': _myVehicleType,
+          'status': status ?? (_isTouring ? 'Riding' : 'Joined'),
+          'updatedAt': FieldValue.serverTimestamp(),
         },
-        SetOptions(
-          merge: true,
-        ),
+        SetOptions(merge: true),
       );
     } catch (e) {
-      debugPrint(
-        'Save member error: $e',
-      );
+      debugPrint('Save member error: $e');
     }
   }
 
@@ -2901,82 +1798,41 @@ if (response.statusCode != 200) {
   // UPDATE MEMBER LOCATION
   // ==========================================================
 
-  Future<void> _updateMyMemberLocation(
-    Position position,
-  ) async {
-    final touringId =
-        _activeTouringId;
+  Future _updateMyMemberLocation(Position position) async {
+    final touringId = _activeTouringId;
+    final user = FirebaseAuth.instance.currentUser;
 
-    final user =
-        FirebaseAuth.instance
-            .currentUser;
+    if (touringId == null || user == null) return;
 
-    if (touringId == null ||
-        user == null) {
+    final now = DateTime.now();
+    if (_lastMemberUpload != null &&
+        now.difference(_lastMemberUpload!) < const Duration(seconds: 2)) {
       return;
     }
 
-    final now =
-        DateTime.now();
-
-    if (_lastMemberUpload !=
-            null &&
-        now.difference(
-              _lastMemberUpload!,
-            ) <
-            const Duration(
-              seconds: 2,
-            )) {
-      return;
-    }
-
-    _lastMemberUpload =
-        now;
+    _lastMemberUpload = now;
 
     try {
       await _firestore
-          .collection(
-            'tourings',
-          )
-          .doc(
-            touringId,
-          )
-          .collection(
-            'members',
-          )
-          .doc(
-            user.uid,
-          )
+          .collection('tourings')
+          .doc(touringId)
+          .collection('members')
+          .doc(user.uid)
           .set(
         {
-          'userId':
-              user.uid,
-          'name':
-              _myName,
-          'lat':
-              position.latitude,
-          'lng':
-              position.longitude,
-          'heading':
-              _heading,
-          'vehicleType':
-              _myVehicleType,
-          'status':
-              _isTouring
-                  ? 'Riding'
-                  : 'Joined',
-          'updatedAt':
-              FieldValue
-                  .serverTimestamp(),
+          'userId': user.uid,
+          'name': _myName,
+          'lat': position.latitude,
+          'lng': position.longitude,
+          'heading': _heading,
+          'vehicleType': _myVehicleType,
+          'status': _isTouring ? 'Riding' : 'Joined',
+          'updatedAt': FieldValue.serverTimestamp(),
         },
-        SetOptions(
-          merge: true,
-        ),
+        SetOptions(merge: true),
       );
     } catch (e) {
-      debugPrint(
-        'Update member location error: $e',
-      );
+      debugPrint('Update member location error: $e');
     }
   }
 
@@ -2984,96 +1840,43 @@ if (response.statusCode != 200) {
   // MEMBER LISTENER
   // ==========================================================
 
-  void _subscribeToTouringMembers(
-    String touringId,
-  ) {
+  void _subscribeToTouringMembers(String touringId) {
     _membersSubscription?.cancel();
 
-    _membersSubscription =
-        _firestore
-            .collection(
-              'tourings',
-            )
-            .doc(
-              touringId,
-            )
-            .collection(
-              'members',
-            )
-            .snapshots()
-            .listen(
+    _membersSubscription = _firestore
+        .collection('tourings')
+        .doc(touringId)
+        .collection('members')
+        .snapshots()
+        .listen(
       (snapshot) {
-        final user =
-            FirebaseAuth.instance
-                .currentUser;
+        final user = FirebaseAuth.instance.currentUser;
+        final members = [];
 
-        final members =
-            <Member>[];
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
 
-        for (final doc
-            in snapshot.docs) {
-          final data =
-              doc.data();
+          if (user != null && doc.id == user.uid) continue;
 
-          if (user != null &&
-              doc.id ==
-                  user.uid) {
-            continue;
-          }
+          final lat = data['lat'];
+          final lng = data['lng'];
 
-          final lat =
-              data['lat'];
+          if (lat is! num || lng is! num) continue;
 
-          final lng =
-              data['lng'];
-
-          if (lat is! num ||
-              lng is! num) {
-            continue;
-          }
-
-          final heading =
-              (data['heading']
-                          as num?)
-                      ?.toDouble() ??
-                  0;
-
-          final name =
-              data['name']
-                      ?.toString() ??
-                  'Member';
-
-          final status =
-              data['status']
-                      ?.toString() ??
-                  'Joined';
-
-          final vehicleType =
-              data['vehicleType']
-                      ?.toString() ??
-                  'Motor';
+          final heading = (data['heading'] as num?)?.toDouble() ?? 0;
+          final name = data['name']?.toString() ?? 'Member';
+          final status = data['status']?.toString() ?? 'Joined';
+          final vehicleType = data['vehicleType']?.toString() ?? 'Motor';
 
           members.add(
             Member(
-              id:
-                  doc.id,
-              name:
-                  name,
-              location:
-                  LatLng(
-                lat.toDouble(),
-                lng.toDouble(),
-              ),
-              status:
-                  status,
-              color:
-                  _memberColor(
-                doc.id,
-              ),
-              vehicleType:
-                  vehicleType,
-              heading:
-                  heading,
+              id: doc.id,
+              name: name,
+              location: LatLng(lat.toDouble(), lng.toDouble()),
+              status: status,
+              color: _memberColor(doc.id),
+              vehicleType: vehicleType,
+              heading: heading,
             ),
           );
         }
@@ -3082,17 +1885,11 @@ if (response.statusCode != 200) {
           setState(() {
             _groupMembers
               ..clear()
-              ..addAll(
-                members,
-              );
+              ..addAll(members);
           });
         }
       },
-      onError: (error) {
-        debugPrint(
-          'Member listener error: $error',
-        );
-      },
+      onError: (error) => debugPrint('Member listener error: $error'),
     );
   }
 
@@ -3100,9 +1897,7 @@ if (response.statusCode != 200) {
   // MEMBER COLOR
   // ==========================================================
 
-  Color _memberColor(
-    String id,
-  ) {
+  Color _memberColor(String id) {
     const colors = [
       Colors.blue,
       Colors.orange,
@@ -3114,36 +1909,22 @@ if (response.statusCode != 200) {
       Colors.indigo,
     ];
 
-    final value =
-        id.codeUnits.fold<int>(
+    final value = id.codeUnits.fold(
       0,
-      (
-        previous,
-        element,
-      ) =>
-          previous +
-          element,
+      (previous, element) => previous + element,
     );
 
-    return colors[
-        value %
-            colors.length];
+    return colors[value % colors.length];
   }
 
   // ==========================================================
   // VEHICLE ASSET
   // ==========================================================
 
-  String _vehicleAsset(
-    String vehicleType,
-  ) {
-    final type =
-        vehicleType.toLowerCase();
+  String _vehicleAsset(String vehicleType) {
+    final type = vehicleType.toLowerCase();
 
-    if (type ==
-            'motor' ||
-        type ==
-            'scooter') {
+    if (type == 'motor' || type == 'scooter') {
       return 'assets/metic.png';
     }
 
@@ -3157,132 +1938,65 @@ if (response.statusCode != 200) {
   void _showMemberList() {
     showModalBottomSheet(
       context: context,
-      backgroundColor:
-          Colors.grey[900],
-      isScrollControlled:
-          true,
+      backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
       builder: (context) {
-        final ownCount =
-            _activeTouringId !=
-                    null
-                ? 1
-                : 0;
-
-        final total =
-            _groupMembers
-                    .length +
-                ownCount;
+        final ownCount = _activeTouringId != null ? 1 : 0;
+        final total = _groupMembers.length + ownCount;
 
         return SafeArea(
-          child:
-              SizedBox(
-            height:
-                MediaQuery.of(
-                      context,
-                    )
-                        .size
-                        .height *
-                    0.65,
-            child:
-                Column(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.65,
+            child: Column(
               children: [
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
                 Container(
                   width: 45,
                   height: 5,
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.grey[600],
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      10,
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                const SizedBox(
-                  height: 15,
-                ),
+                const SizedBox(height: 15),
                 Padding(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal:
-                        20,
-                  ),
-                  child:
-                      Row(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
                     children: [
-                      const Icon(
-                        Icons.groups,
-                      ),
-                      const SizedBox(
-                        width: 10,
-                      ),
+                      const Icon(Icons.groups),
+                      const SizedBox(width: 10),
                       Text(
                         'Anggota Touring ($total)',
-                        style:
-                            const TextStyle(
-                          fontSize:
-                              20,
-                          fontWeight:
-                              FontWeight
-                                  .bold,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
                 const Divider(),
-
-                if (_activeTouringId ==
-                    null)
+                if (_activeTouringId == null)
                   Expanded(
-                    child:
-                        Center(
-                      child:
-                          Column(
-                        mainAxisSize:
-                            MainAxisSize
-                                .min,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons
-                                .groups_outlined,
+                            Icons.groups_outlined,
                             size: 70,
-                            color: Colors
-                                .grey[600],
+                            color: Colors.grey[600],
                           ),
-                          const SizedBox(
-                            height: 15,
-                          ),
-                          const Text(
-                            'Belum Join Touring',
-                          ),
-                          const SizedBox(
-                            height: 10,
-                          ),
-                          ElevatedButton
-                              .icon(
-                            onPressed:
-                                () {
-                              Navigator.pop(
-                                context,
-                              );
-
+                          const SizedBox(height: 15),
+                          const Text('Belum Join Touring'),
+                          const SizedBox(height: 10),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
                               _showJoinTouringDialog();
                             },
-                            icon:
-                                const Icon(
-                              Icons.login,
-                            ),
-                            label:
-                                const Text(
-                              'Join Touring',
-                            ),
+                            icon: const Icon(Icons.login),
+                            label: const Text('Join Touring'),
                           ),
                         ],
                       ),
@@ -3290,191 +2004,89 @@ if (response.statusCode != 200) {
                   )
                 else
                   Expanded(
-                    child:
-                        ListView(
+                    child: ListView(
                       children: [
-                        // ==================================================
-                        // CONTROL TOURING
-                        // ==================================================
-
                         Padding(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal:
-                                16,
-                            vertical:
-                                8,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
                           ),
-                          child:
-                              _isCaptain
-                                  ? SizedBox(
-                                      width:
-                                          double.infinity,
-                                      child:
-                                          OutlinedButton.icon(
-                                        style:
-                                            OutlinedButton.styleFrom(
-                                          foregroundColor:
-                                              Colors.redAccent,
-                                          side:
-                                              const BorderSide(
-                                            color:
-                                                Colors.redAccent,
-                                          ),
-                                        ),
-                                        onPressed:
-                                            _finishTouring,
-                                        icon:
-                                            const Icon(
-                                          Icons.flag,
-                                        ),
-                                        label:
-                                            const Text(
-                                          'Selesaikan Touring',
-                                        ),
-                                      ),
-                                    )
-                                  : SizedBox(
-                                      width:
-                                          double.infinity,
-                                      child:
-                                          OutlinedButton.icon(
-                                        style:
-                                            OutlinedButton.styleFrom(
-                                          foregroundColor:
-                                              Colors.orangeAccent,
-                                          side:
-                                              const BorderSide(
-                                            color:
-                                                Colors.orangeAccent,
-                                          ),
-                                        ),
-                                        onPressed:
-                                            _leaveTouring,
-                                        icon:
-                                            const Icon(
-                                          Icons.logout,
-                                        ),
-                                        label:
-                                            const Text(
-                                          'Keluar dari Touring',
-                                        ),
+                          child: _isCaptain
+                              ? SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.redAccent,
+                                      side: const BorderSide(
+                                        color: Colors.redAccent,
                                       ),
                                     ),
-                        ),
-
-                        const Divider(),
-
-                        // ==================================================
-                        // SAYA
-                        // ==================================================
-
-                        ListTile(
-                          leading:
-                              const CircleAvatar(
-                            backgroundColor:
-                                Colors.green,
-                            child:
-                                Icon(
-                              Icons.person,
-                              color:
-                                  Colors.white,
-                            ),
-                          ),
-                          title:
-                              Text(
-                            '$_myName (Saya)',
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                          subtitle:
-                              Text(
-                            '${_myVehicleType} • '
-                            '${_isTouring ? 'Riding' : 'Joined'}',
-                          ),
-                          trailing:
-                              _isCaptain
-                                  ? const Chip(
-                                      label:
-                                          Text(
-                                        'CAPTAIN',
+                                    onPressed: _finishTouring,
+                                    icon: const Icon(Icons.flag),
+                                    label: const Text('Selesaikan Touring'),
+                                  ),
+                                )
+                              : SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.orangeAccent,
+                                      side: const BorderSide(
+                                        color: Colors.orangeAccent,
                                       ),
-                                    )
-                                  : null,
-                        ),
-
-                        const Divider(),
-
-                        // ==================================================
-                        // MEMBER LAIN
-                        // ==================================================
-
-                        if (_groupMembers
-                            .isEmpty)
-                          const Padding(
-                            padding:
-                                EdgeInsets
-                                    .all(
-                              30,
-                            ),
-                            child:
-                                Center(
-                              child:
-                                  Text(
-                                'Belum ada anggota lain.',
-                              ),
-                            ),
-                          )
-                        else
-                          ..._groupMembers
-                              .map(
-                            (
-                              member,
-                            ) {
-                              return ListTile(
-                                leading:
-                                    CircleAvatar(
-                                  backgroundColor:
-                                      member.color,
-                                  child:
-                                      const Icon(
-                                    Icons.person,
-                                    color:
-                                        Colors.white,
+                                    ),
+                                    onPressed: _leaveTouring,
+                                    icon: const Icon(Icons.logout),
+                                    label: const Text('Keluar dari Touring'),
                                   ),
                                 ),
-                                title:
-                                    Text(
-                                  member.name,
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: const CircleAvatar(
+                            backgroundColor: Colors.green,
+                            child: Icon(Icons.person, color: Colors.white),
+                          ),
+                          title: Text(
+                            '$_myName (Saya)',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            '\(_myVehicleType •\){_isTouring ? 'Riding' : 'Joined'}',
+                          ),
+                          trailing: _isCaptain
+                              ? const Chip(label: Text('CAPTAIN'))
+                              : null,
+                        ),
+                        const Divider(),
+                        if (_groupMembers.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(30),
+                            child: Center(child: Text('Belum ada anggota lain.')),
+                          )
+                        else
+                          ..._groupMembers.map(
+                            (member) {
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: member.color,
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                                subtitle:
-                                    Text(
-                                  '${member.vehicleType} • '
-                                  '${member.status}',
+                                title: Text(member.name),
+                                subtitle: Text(
+                                  '\({member.vehicleType} •\){member.status}',
                                 ),
-                                trailing:
-                                    Transform.rotate(
-                                  angle:
-                                      member.heading *
-                                          math.pi /
-                                          180,
-                                  alignment:
-                                      Alignment.center,
-                                  child:
-                                      Image.asset(
-                                    _vehicleAsset(
-                                      member.vehicleType,
-                                    ),
-                                    width:
-                                        40,
-                                    height:
-                                        40,
-                                    fit:
-                                        BoxFit.contain,
+                                trailing: Transform.rotate(
+                                  angle: member.heading * math.pi / 180,
+                                  alignment: Alignment.center,
+                                  child: Image.asset(
+                                    _vehicleAsset(member.vehicleType),
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
                               );
@@ -3495,234 +2107,137 @@ if (response.statusCode != 200) {
   // AGORA
   // ==========================================================
 
-  Future<void> _initAgoraPTT() async {
+  Future _initAgoraPTT() async {
     try {
       if (kIsWeb) return;
 
-      final micStatus =
-          await Permission.microphone
-              .request();
+      final micStatus = await Permission.microphone.request();
 
       if (!micStatus.isGranted) {
-        debugPrint(
-          'Microphone permission denied.',
-        );
-
         if (mounted) {
           setState(() {
-            _microphoneEnabled =
-                false;
+            _microphoneEnabled = false;
           });
         }
-
         return;
       }
 
-      final engine =
-          createAgoraRtcEngine();
+      final engine = createAgoraRtcEngine();
 
-      await engine.initialize(
-        const RtcEngineContext(
-          appId:
-              agoraAppId,
-        ),
-      );
-
+      await engine.initialize(const RtcEngineContext(appId: agoraAppId));
       await engine.enableAudio();
+      await engine.muteLocalAudioStream(true);
 
-      await engine
-          .muteLocalAudioStream(
-        true,
+      await engine.setChannelProfile(
+        ChannelProfileType.channelProfileCommunication,
       );
 
-      await engine
-          .setChannelProfile(
-        ChannelProfileType
-            .channelProfileCommunication,
-      );
-
-      await engine.setClientRole(
-        role: ClientRoleType
-            .clientRoleBroadcaster,
-      );
+      await engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
 
       engine.registerEventHandler(
         RtcEngineEventHandler(
-          onJoinChannelSuccess:
-              (
-            connection,
-            elapsed,
-          ) {
-            debugPrint(
-              'Agora joined: '
-              '${connection.channelId}',
-            );
+          onJoinChannelSuccess: (connection, elapsed) {
+            debugPrint('Agora joined: ${connection.channelId}');
           },
-          onError:
-              (
-            err,
-            msg,
-          ) {
-            debugPrint(
-              'Agora error: '
-              '$err $msg',
-            );
+          onError: (err, msg) {
+            debugPrint('Agora error: \(err\)msg');
           },
         ),
       );
 
-      _engine =
-          engine;
+      _engine = engine;
 
       await engine.joinChannel(
         token: '',
-        channelId:
-            channelName,
+        channelId: channelName,
         uid: 0,
-        options:
-            const ChannelMediaOptions(),
+        options: const ChannelMediaOptions(),
       );
 
       if (mounted) {
         setState(() {
-          _isPttInitialized =
-              true;
-          _microphoneEnabled =
-              true;
+          _isPttInitialized = true;
+          _microphoneEnabled = true;
         });
       }
     } catch (e) {
-      debugPrint(
-        'Agora init error: $e',
-      );
+      debugPrint('Agora init error: $e');
 
       if (mounted) {
         setState(() {
-          _isPttInitialized =
-              false;
-          _microphoneEnabled =
-              false;
+          _isPttInitialized = false;
+          _microphoneEnabled = false;
         });
       }
     }
   }
 
   // ==========================================================
-// REFRESH / RECONNECT PTT
-// ==========================================================
+  // REFRESH / RECONNECT PTT
+  // ==========================================================
 
-Future<void> _refreshAgoraPTT() async {
-  try {
-    if (kIsWeb) return;
+  Future _refreshAgoraPTT() async {
+    try {
+      if (kIsWeb) return;
 
-    if (mounted) {
-      setState(() {
-        _microphoneEnabled = false;
-        _isPttInitialized = false;
-        _isTalking = false;
-      });
-    }
-
-    // Lepaskan Agora lama jika masih ada.
-    if (_engine != null) {
-      try {
-        await _engine!.leaveChannel();
-      } catch (e) {
-        debugPrint(
-          'Agora leave error: $e',
-        );
+      if (mounted) {
+        setState(() {
+          _microphoneEnabled = false;
+          _isPttInitialized = false;
+          _isTalking = false;
+        });
       }
 
-      try {
-        await _engine!.release();
-      } catch (e) {
-        debugPrint(
-          'Agora release error: $e',
-        );
+      if (_engine != null) {
+        try {
+          await _engine!.leaveChannel();
+        } catch (_) {}
+
+        try {
+          await _engine!.release();
+        } catch (_) {}
+
+        _engine = null;
       }
 
-      _engine = null;
-    }
-
-    // Beri sedikit waktu agar resource microphone benar-benar dilepas.
-    await Future.delayed(
-      const Duration(
-        milliseconds: 500,
-      ),
-    );
-
-    // Inisialisasi dan connect ulang.
-    await _initAgoraPTT();
-  } catch (e) {
-    debugPrint(
-      'Agora refresh error: $e',
-    );
-
-    if (mounted) {
-      setState(() {
-        _microphoneEnabled = false;
-        _isPttInitialized = false;
-        _isTalking = false;
-      });
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _initAgoraPTT();
+    } catch (e) {
+      debugPrint('Agora refresh error: $e');
     }
   }
-}
 
   // ==========================================================
-  // PTT START
+  // PTT START & STOP
   // ==========================================================
 
-  Future<void> _startTalking() async {
-    if (!_isPttInitialized ||
-        _engine == null) {
-      return;
-    }
+  Future _startTalking() async {
+    if (!_isPttInitialized || _engine == null) return;
 
     try {
-      await _engine!
-          .muteLocalAudioStream(
-        false,
-      );
-
+      await _engine!.muteLocalAudioStream(false);
       if (mounted) {
         setState(() {
-          _isTalking =
-              true;
+          _isTalking = true;
         });
       }
     } catch (e) {
-      debugPrint(
-        'PTT start error: $e',
-      );
+      debugPrint('PTT start error: $e');
     }
   }
 
-  // ==========================================================
-  // PTT STOP
-  // ==========================================================
-
-  Future<void> _stopTalking() async {
-    if (!_isPttInitialized ||
-        _engine == null) {
-      return;
-    }
+  Future _stopTalking() async {
+    if (!_isPttInitialized || _engine == null) return;
 
     try {
-      await _engine!
-          .muteLocalAudioStream(
-        true,
-      );
-
+      await _engine!.muteLocalAudioStream(true);
       if (mounted) {
         setState(() {
-          _isTalking =
-              false;
+          _isTalking = false;
         });
       }
     } catch (e) {
-      debugPrint(
-        'PTT stop error: $e',
-      );
+      debugPrint('PTT stop error: $e');
     }
   }
 
@@ -3733,13 +2248,8 @@ Future<void> _refreshAgoraPTT() async {
   @override
   void dispose() {
     _positionStream?.cancel();
-
-    _membersSubscription
-        ?.cancel();
-
-    _engine
-        ?.leaveChannel();
-
+    _membersSubscription?.cancel();
+    _engine?.leaveChannel();
     _engine?.release();
 
     super.dispose();
@@ -3750,192 +2260,87 @@ Future<void> _refreshAgoraPTT() async {
   // ==========================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar:
-          AppBar(
-        title:
-            const Text(
-          'Touring Map',
-        ),
+      appBar: AppBar(
+        title: const Text('Touring Map'),
         actions: [
-          // ==================================================
-          // CREATE TOURING
-          // ==================================================
-
           IconButton(
-            icon:
-                const Icon(
-              Icons
-                  .add_circle_outline,
-            ),
-            tooltip:
-                'Buat Touring',
-            onPressed:
-                _showCreateTouringDialog,
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'Buat Touring',
+            onPressed: _showCreateTouringDialog,
           ),
-
-          // ==================================================
-          // ROUTE
-          // ==================================================
-
           IconButton(
-            icon:
-                const Icon(
-              Icons.route,
-            ),
-            tooltip:
-                'Atur Rute',
-            onPressed:
-                _showSetRouteDialog,
+            icon: const Icon(Icons.route),
+            tooltip: 'Atur Rute',
+            onPressed: _showSetRouteDialog,
           ),
-
-          // ==================================================
-          // JOIN
-          // ==================================================
-
           IconButton(
-            icon:
-                const Icon(
-              Icons.login,
-            ),
-            tooltip:
-                'Join Touring',
-            onPressed:
-                _showJoinTouringDialog,
+            icon: const Icon(Icons.login),
+            tooltip: 'Join Touring',
+            onPressed: _showJoinTouringDialog,
           ),
-
-          // ==================================================
-          // MEMBERS
-          // ==================================================
-
           Stack(
-            alignment:
-                Alignment.center,
+            alignment: Alignment.center,
             children: [
               IconButton(
-                icon:
-                    const Icon(
-                  Icons.groups,
-                ),
-                tooltip:
-                    'Anggota',
-                onPressed:
-                    _showMemberList,
+                icon: const Icon(Icons.groups),
+                tooltip: 'Anggota',
+                onPressed: _showMemberList,
               ),
-              if (_activeTouringId !=
-                  null)
+              if (_activeTouringId != null)
                 Positioned(
                   right: 4,
                   top: 5,
-                  child:
-                      Container(
-                    padding:
-                        const EdgeInsets
-                            .all(
-                      4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
                     ),
-                    decoration:
-                        const BoxDecoration(
-                      color:
-                          Colors.red,
-                      shape:
-                          BoxShape.circle,
-                    ),
-                    child:
-                        Text(
+                    child: Text(
                       '${_groupMembers.length + 1}',
-                      style:
-                          const TextStyle(
-                        fontSize:
-                            9,
-                        fontWeight:
-                            FontWeight.bold,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
             ],
           ),
-
-          // ==================================================
-          // VEHICLE
-          // ==================================================
-
           IconButton(
-            icon:
-                Icon(
-              _isMotorMode
-                  ? Icons
-                      .two_wheeler
-                  : Icons
-                      .directions_car,
+            icon: Icon(
+              _isMotorMode ? Icons.two_wheeler : Icons.directions_car,
             ),
-            tooltip:
-                'Ganti Kendaraan',
-            onPressed:
-                () async {
+            tooltip: 'Ganti Kendaraan',
+            onPressed: () async {
               setState(() {
-                _isMotorMode =
-                    !_isMotorMode;
-
-                _myVehicleType =
-                    _isMotorMode
-                        ? 'Motor'
-                        : 'SUV';
+                _isMotorMode = !_isMotorMode;
+                _myVehicleType = _isMotorMode ? 'Motor' : 'SUV';
               });
 
-              if (_activeTouringId !=
-                  null) {
+              if (_activeTouringId != null) {
                 await _saveMyMember();
                 await _saveTouringSession();
               }
             },
           ),
-
-          // ==================================================
-          // MAP STYLE
-          // ==================================================
-
-          PopupMenuButton<String>(
-            icon:
-                const Icon(
-              Icons.layers,
-            ),
-            tooltip:
-                'Map Style',
-            onSelected:
-                (
-              String key,
-            ) {
+          PopupMenuButton(
+            icon: const Icon(Icons.layers),
+            tooltip: 'Map Style',
+            onSelected: (String key) {
               setState(() {
-                _selectedTile =
-                    key;
+                _selectedTile = key;
               });
             },
-            itemBuilder:
-                (
-              BuildContext context,
-            ) {
-              return _tileProviders
-                  .keys
-                  .map(
-                (
-                  String key,
-                ) {
-                  return PopupMenuItem<
-                      String>(
-                    value:
-                        key,
-                    child:
-                        Text(
-                      key,
-                    ),
-                  );
-                },
-              ).toList();
+            itemBuilder: (BuildContext context) {
+              return _tileProviders.keys.map((String key) {
+                return PopupMenuItem(
+                  value: key,
+                  child: Text(key),
+                );
+              }).toList();
             },
           ),
         ],
@@ -3945,764 +2350,540 @@ Future<void> _refreshAgoraPTT() async {
       // BODY
       // ======================================================
 
-      body:
-          Stack(
+      body: Stack(
         children: [
+          // 1. PETA (Hanya elemen peta murni)
           FlutterMap(
-            mapController:
-                _mapController,
-            options:
-                MapOptions(
-              initialCenter:
-                  _currentPosition !=
-                          null
-                      ? LatLng(
-                          _currentPosition!
-                              .latitude,
-                          _currentPosition!
-                              .longitude,
-                        )
-                      : _titikKumpul,
-              initialZoom:
-                  14,
-              onTap:
-                  _handleMapTap,
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentPosition != null
+                  ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                  : (_titikKumpul ?? const LatLng(-6.175392, 106.827153)),
+              initialZoom: 15,
+              onTap: _handleMapTap,
             ),
             children: [
-              // ==================================================
-              // MAP TILE
-              // ==================================================
-
               TileLayer(
-                urlTemplate:
-                    _tileProviders[
-                        _selectedTile]!,
-                userAgentPackageName:
-                    'com.tedapp.touringmap',
-                maxZoom:
-                    19,
+                urlTemplate: _tileProviders[_selectedTile]!,
+                userAgentPackageName: 'com.tedapp.touringmap',
+                maxZoom: 19,
               ),
 
-              // ==================================================
-              // ROUTE LINE
-              // ==================================================
-
               if (_routeOptions.isNotEmpty)
-  PolylineLayer(
-    polylines: [
-      for (int i = 0;
-          i < _routeOptions.length;
-          i++)
-        Polyline(
-          points:
-              _routeOptions[i].points,
-          strokeWidth:
-              i == _selectedRouteIndex
-                  ? 6
-                  : 4,
-          color:
-              i == _selectedRouteIndex
-                  ? Colors.blue
-                  : Colors.grey,
-        ),
-    ],
-  ),
-
-              // ==================================================
-              // MARKERS
-              // ==================================================
+                PolylineLayer(
+                  polylines: [
+                    for (int i = 0; i < _routeOptions.length; i++)
+                      Polyline(
+                        points: _routeOptions[i].points,
+                        strokeWidth: i == _selectedRouteIndex ? 6 : 4,
+                        color: i == _selectedRouteIndex
+                            ? Colors.blue
+                            : Colors.grey,
+                      ),
+                  ],
+                ),
 
               MarkerLayer(
                 markers: [
-                  // ============================================
                   // MARKER SAYA
-                  // ============================================
-
                   if (_currentPosition != null)
-  Marker(
-    point: LatLng(
-      _currentPosition!.latitude,
-      _currentPosition!.longitude,
-    ),
-    width: 80,
-    height: 90,
-    // Menjaga marker tetap konsisten terhadap peta
-    rotate: true, 
-    child: Transform.rotate(
-      // Memutar motor SEKALIGUS label namanya agar nama selalu berada di ekor motor
-      angle: (_heading + 135) * math.pi / 180,
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 1. Gambar Motor
-          Image.asset(
-            _isMotorMode
-                ? 'assets/metic.png'
-                : 'assets/xtrail.png',
-            width: 50,
-            height: 50,
-            fit: BoxFit.contain,
-          ),
-          
-          // 2. Label Nama di bagian belakang (pantat) motor
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 5,
-              vertical: 2,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.75),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              'Saya',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  ),
-
-                  // ============================================
-                  // START
-                  // ============================================
-
-                  Marker(
-                    point:
-                        _titikKumpul,
-                    width:
-                        55,
-                    height:
-                        65,
-                    child:
-                        const Column(
-                      mainAxisSize:
-                          MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          color:
-                              Colors.green,
-                          size:
-                              40,
+                    Marker(
+                      point: LatLng(
+                        _currentPosition!.latitude,
+                        _currentPosition!.longitude,
+                      ),
+                      width: 80,
+                      height: 90,
+                      rotate: true,
+                      child: Transform.rotate(
+                        angle: (_heading - 60) * math.pi / 180,
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.75),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Saya',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Image.asset(
+                              _isMotorMode
+                                  ? 'assets/metic.png'
+                                  : 'assets/xtrail.png',
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
                         ),
-                        Text(
-                          'Start',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                10,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
 
-                  // ============================================
-                  // FINISH
-                  // ============================================
-
-                  Marker(
-                    point:
-                        _destinasi,
-                    width:
-                        55,
-                    height:
-                        65,
-                    child:
-                        const Column(
-                      mainAxisSize:
-                          MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.flag,
-                          color:
-                              Colors.red,
-                          size:
-                              40,
-                        ),
-                        Text(
-                          'Finish',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                10,
-                            fontWeight:
-                                FontWeight.bold,
+                  // START MARKER (Hanya tampil jika ada koordinat)
+                  if (_titikKumpul != null)
+                    Marker(
+                      point: _titikKumpul!,
+                      width: 55,
+                      height: 65,
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            color: Colors.green,
+                            size: 40,
                           ),
-                        ),
-                      ],
+                          Text(
+                            'Start',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
 
-                  // ============================================
-                  // MEMBER TOURING
-                  // ============================================
+                  // FINISH MARKER (Hanya tampil jika ada koordinat)
+                  if (_destinasi != null)
+                    Marker(
+                      point: _destinasi!,
+                      width: 55,
+                      height: 65,
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.flag,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                          Text(
+                            'Finish',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
+                  // MARKER ANGGOTA
                   ..._groupMembers.map(
-  (member) {
-    return Marker(
-      point: member.location,
-      width: 90,
-      height: 100,
-      // 1. Agar marker tetap sinkron dengan orientasi peta
-      rotate: true,
-      // 2. Memutar kendaraan DAN nama anggota sekaligus
-      child: Transform.rotate(
-        angle: (member.heading + 135) * math.pi / 180,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Gambar Kendaraan
-            Image.asset(
-              _vehicleAsset(
-                member.vehicleType,
+                    (member) {
+                      return Marker(
+                        point: member.location,
+                        width: 90,
+                        height: 100,
+                        rotate: true,
+                        child: Transform.rotate(
+                          angle: (member.heading - 60) * math.pi / 180,
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: member.color.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  member.name,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Image.asset(
+                                _vehicleAsset(member.vehicleType),
+                                width: 55,
+                                height: 55,
+                                fit: BoxFit.contain,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-              width: 55,
-              height: 55,
-              fit: BoxFit.contain,
+            ],
+          ),
+
+          // 2. ELEMENT UI / OVERLAY DI LUAR FLUTTERMAP
+          Positioned(
+            right: 12,
+            bottom: 70,
+            child: FloatingActionButton.small(
+              heroTag: 'center_location',
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+              onPressed: _centerMyLocation,
+              child: const Icon(
+                Icons.my_location,
+                size: 18,
+              ),
             ),
-            // Label Nama Anggota (Selalu menempel di belakang kendaraan)
-            Container(
+          ),
+
+          Positioned(
+            left: 10,
+            right: 10,
+            top: 10,
+            child: Card(
+              color: Colors.black.withOpacity(0.78),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 5,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _locationReady ? Icons.gps_fixed : Icons.gps_off,
+                          color: _locationReady ? Colors.green : Colors.red,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _gpsStatus,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        IconButton(
+                          onPressed: _refreshGPS,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 26,
+                            minHeight: 26,
+                          ),
+                          tooltip: 'Refresh GPS',
+                        ),
+                        const Spacer(),
+                        Icon(
+                          _microphoneEnabled ? Icons.mic : Icons.mic_off,
+                          size: 16,
+                          color: _microphoneEnabled ? Colors.green : Colors.red,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _microphoneEnabled
+                              ? 'Microphone Aktif'
+                              : 'Microphone Tidak Aktif',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _microphoneEnabled
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _refreshAgoraPTT,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 26,
+                            minHeight: 26,
+                          ),
+                          tooltip: 'Refresh Microphone',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.directions_car, size: 16),
+                        const SizedBox(width: 5),
+                        Text(
+                          _routeDistanceKm > 0
+                              ? '${_routeDistanceKm.toStringAsFixed(1)} km'
+                              : '${_distanceInKm.toStringAsFixed(1)} km',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.access_time, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          _routeDurationMinutes > 0
+                              ? '${_routeDurationMinutes.round()} min'
+                              : '$_estimatedMinutes min',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        const Spacer(),
+                        if (_isLoadingRoute)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
+                    ),
+                    if (_activeTouringId != null) ...[
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.groups,
+                              size: 16,
+                              color: Colors.blue,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _activeTouringName ?? 'Touring',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              _activeTouringCode ?? '',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          if (_mapPickingMode)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 68,
+              child: Card(
+                color: Colors.orange.withOpacity(0.95),
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.touch_app,
+                        color: Colors.black,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _pickingTarget == 'start'
+                              ? 'Tap map untuk memilih titik kumpul'
+                              : 'Tap map untuk memilih destinasi',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _mapPickingMode = false;
+                            _pickingTarget = '';
+                          });
+                        },
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.black,
+                          size: 18,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 30,
+                          minHeight: 30,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          if (_isTalking)
+            Positioned(
+              left: 12,
+              bottom: 68,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.mic,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    SizedBox(width: 5),
+                    Text(
+                      'Transmisi Suara Aktif...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          Positioned(
+            right: 10,
+            bottom: 72,
+            child: Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 6,
+                horizontal: 7,
                 vertical: 3,
               ),
               decoration: BoxDecoration(
-                color: member.color.withOpacity(
-                  0.9,
-                ),
-                borderRadius: BorderRadius.circular(
-                  5,
-                ),
+                color: Colors.black.withOpacity(0.65),
+                borderRadius: BorderRadius.circular(5),
               ),
-              child: Text(
-                member.name,
-                style: const TextStyle(
+              child: const Text(
+                'Created by Mr. Ted',
+                style: TextStyle(
                   fontSize: 10,
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  },
-),
-                ],
-              ),
-            ],
           ),
-          
-          // ==================================================
-// CENTER LOCATION
-// ==================================================
 
-Positioned(
-  right: 12,
-  bottom: 70,
-  child: FloatingActionButton.small(
-    heroTag: 'center_location',
-    backgroundColor: Colors.black87,
-    foregroundColor: Colors.white,
-    onPressed: _centerMyLocation,
-    child: const Icon(
-      Icons.my_location,
-      size: 18,
-    ),
-  ),
-),
-
-          // ==================================================
-// TOP STATUS
-// ==================================================
-
-Positioned(
-  left: 10,
-  right: 10,
-  top: 10,
-  child: Card(
-    color: Colors.black.withOpacity(0.78),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 5,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // ==================================================
-              // GPS
-              // ==================================================
-
-              Icon(
-                _locationReady
-                    ? Icons.gps_fixed
-                    : Icons.gps_off,
-                color: _locationReady
-                    ? Colors.green
-                    : Colors.red,
-                size: 16,
-              ),
-
-              const SizedBox(
-                width: 5,
-              ),
-
-              Text(
-                _gpsStatus,
-                style: const TextStyle(
-                  fontSize: 11,
-                ),
-              ),
-
-              IconButton(
-                onPressed: _refreshGPS,
-                icon: const Icon(
-                  Icons.refresh,
-                  size: 16,
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 26,
-                  minHeight: 26,
-                ),
-                tooltip: 'Refresh GPS',
-              ),
-
-              const Spacer(),
-
-    // ==================================================
-// MICROPHONE
-// ==================================================
-
-Icon(
-  _microphoneEnabled
-      ? Icons.mic
-      : Icons.mic_off,
-  size: 16,
-  color: _microphoneEnabled
-      ? Colors.green
-      : Colors.red,
-),
-
-const SizedBox(
-  width: 4,
-),
-
-Text(
-  _microphoneEnabled
-      ? 'Microphone Aktif'
-      : 'Microphone Tidak Aktif',
-  style: TextStyle(
-    fontSize: 11,
-    color: _microphoneEnabled
-        ? Colors.green
-        : Colors.red,
-  ),
-),
-
-IconButton(
-  onPressed: _refreshAgoraPTT,
-  icon: const Icon(
-    Icons.refresh,
-    size: 16,
-  ),
-  padding: EdgeInsets.zero,
-  constraints: const BoxConstraints(
-    minWidth: 26,
-    minHeight: 26,
-  ),
-  tooltip: 'Refresh Microphone',
-),
-],
-),
-
-                    const SizedBox(
-  height: 4,
-),
-
-Row(
-  children: [
-    const Icon(
-      Icons.directions_car,
-      size: 16,
-    ),
-
-    const SizedBox(
-      width: 5,
-    ),
-
-    Text(
-      _routeDistanceKm > 0
-          ? '${_routeDistanceKm.toStringAsFixed(1)} km'
-          : '${_distanceInKm.toStringAsFixed(1)} km',
-      style: const TextStyle(
-        fontSize: 11,
-      ),
-    ),
-
-    const SizedBox(
-      width: 10,
-    ),
-
-    const Icon(
-      Icons.access_time,
-      size: 16,
-    ),
-
-    const SizedBox(
-      width: 4,
-    ),
-
-    Text(
-      _routeDurationMinutes > 0
-          ? '${_routeDurationMinutes.round()} min'
-          : '$_estimatedMinutes min',
-      style: const TextStyle(
-        fontSize: 11,
-      ),
-    ),
-
-    const Spacer(),
-
-    if (_isLoadingRoute)
-      const SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-        ),
-      ),
-  ],
-),
-
-if (_activeTouringId != null) ...[
-  const SizedBox(
-    height: 5,
-  ),
-
-  Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 8,
-      vertical: 5,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.blue.withOpacity(0.25),
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(
-        color: Colors.blue,
-      ),
-    ),
-    child: Row(
-      children: [
-        const Icon(
-          Icons.groups,
-          size: 16,
-          color: Colors.blue,
-        ),
-
-        const SizedBox(
-          width: 6,
-        ),
-
-        Expanded(
-          child: Text(
-            _activeTouringName ?? 'Touring',
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-
-        Text(
-          _activeTouringCode ?? '',
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onLongPressStart: (_) => _startTalking(),
+                  onLongPressEnd: (_) => _stopTalking(),
+                  onLongPressCancel: () => _stopTalking(),
+                  child: Container(
+                    width: 90,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      color: _isTalking ? Colors.red : Colors.black87,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _isTalking ? Colors.redAccent : Colors.grey,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _isTalking ? Icons.mic : Icons.mic_none,
+                          color: _isTalking
+                              ? Colors.white
+                              : Colors.greenAccent,
+                          size: 19,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _isTalking ? 'BICARA' : 'PTT',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    ),
-  ),
-),
-
-          // ==================================================
-// MAP PICKING BANNER
-// ==================================================
-
-if (_mapPickingMode)
-  Positioned(
-    left: 12,
-    right: 12,
-    bottom: 68,
-    child: Card(
-      color: Colors.orange.withOpacity(0.95),
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 4,
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.touch_app,
-              color: Colors.black,
-              size: 18,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                _pickingTarget == 'start'
-                    ? 'Tap map untuk memilih titik kumpul'
-                    : 'Tap map untuk memilih destinasi',
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
                 ),
-              ),
-            ),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _mapPickingMode = false;
-                  _pickingTarget = '';
-                });
-              },
-              icon: const Icon(
-                Icons.close,
-                color: Colors.black,
-                size: 18,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 30,
-                minHeight: 30,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  ),
-
-          // ==================================================
-// PTT ACTIVE
-// ==================================================
-
-if (_isTalking)
-  Positioned(
-    left: 12,
-    bottom: 68,
-    child: Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.mic,
-            color: Colors.white,
-            size: 16,
-          ),
-          SizedBox(width: 5),
-          Text(
-            'Transmisi Suara Aktif...',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    ),
-  ),
-
-          // ==================================================
-// WATERMARK
-// ==================================================
-
-Positioned(
-  right: 10,
-  bottom: 72,
-  child: Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 7,
-      vertical: 3,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.black.withOpacity(0.65),
-      borderRadius: BorderRadius.circular(5),
-    ),
-    child: const Text(
-      'Created by Mr. Ted',
-      style: TextStyle(
-        fontSize: 10,
-        color: Colors.white,
-      ),
-    ),
-  ),
-),
-
-// ==================================================
-// BOTTOM CONTROL
-// ==================================================
-
-Positioned(
-  left: 12,
-  right: 12,
-  bottom: 12,
-  child: Row(
-    children: [
-
-      // ==================================================
-      // PTT BUTTON
-      // ==================================================
-
-      GestureDetector(
-        onLongPressStart: (_) {
-          _startTalking();
-        },
-        onLongPressEnd: (_) {
-          _stopTalking();
-        },
-        onLongPressCancel: () {
-          _stopTalking();
-        },
-        child: Container(
-          width: 90,
-          height: 45,
-          decoration: BoxDecoration(
-            color: _isTalking
-                ? Colors.red
-                : Colors.black87,
-            borderRadius:
-                BorderRadius.circular(10),
-            border: Border.all(
-              color: _isTalking
-                  ? Colors.redAccent
-                  : Colors.grey,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color:
-                    Colors.black.withOpacity(0.3),
-                blurRadius: 6,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-            children: [
-              Icon(
-                _isTalking
-                    ? Icons.mic
-                    : Icons.mic_none,
-                color: _isTalking
-                    ? Colors.white
-                    : Colors.greenAccent,
-                size: 19,
-              ),
-              const SizedBox(
-                width: 5,
-              ),
-              Text(
-                _isTalking
-                    ? 'BICARA'
-                    : 'PTT',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _isTouring ? Colors.red : Colors.green,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 45),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: _isTouring ? _stopTouring : _startTouring,
+                    icon: Icon(
+                      _isTouring ? Icons.stop : Icons.play_arrow,
+                      size: 20,
+                    ),
+                    label: Text(
+                      _isTouring ? 'STOP TOURING' : 'START TOURING',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-
-      const SizedBox(
-        width: 8,
-      ),
-
-      // ==================================================
-      // START / STOP
-      // ==================================================
-
-      Expanded(
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _isTouring
-                ? Colors.red
-                : Colors.green,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(
-              0,
-              45,
-            ),
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 10,
-            ),
-            shape:
-                RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(10),
+              ],
             ),
           ),
-          onPressed: _isTouring
-              ? _stopTouring
-              : _startTouring,
-          icon: Icon(
-            _isTouring
-                ? Icons.stop
-                : Icons.play_arrow,
-            size: 20,
-          ),
-          label: Text(
-            _isTouring
-                ? 'STOP TOURING'
-                : 'START TOURING',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
-    ],
-  ),
-),
         ],
       ),
     );
