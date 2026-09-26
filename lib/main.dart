@@ -708,25 +708,25 @@ class _MapScreenState extends State {
       });
     }
 
-    try {
-      final uri = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '\({start.longitude},\){start.latitude};'
-        '\({_destinasi!.longitude},\){_destinasi!.latitude}',
-      ).replace(
-        queryParameters: {
-          'overview': 'full',
-          'geometries': 'geojson',
-          'alternatives': 'true',
-        },
-      );
+    final uri = Uri.parse(
+  'https://router.project-osrm.org/route/v1/driving/'
+  '${start.longitude},${start.latitude};'
+  '${_destinasi!.longitude},${_destinasi!.latitude}',
+).replace(
+  queryParameters: {
+    'overview': 'full',
+    'geometries': 'geojson',
+    'alternatives': 'true',
+  },
+);
 
       final response = await http.get(uri);
 
       if (response.statusCode != 200) {
         throw Exception(
-          'OSRM HTTP \({response.statusCode}:\){response.body}',
-        );
+          throw Exception(
+  'OSRM HTTP ${response.statusCode}: ${response.body}',
+);
       }
 
       final data = jsonDecode(response.body);
@@ -2144,8 +2144,8 @@ class _MapScreenState extends State {
             debugPrint('Agora joined: ${connection.channelId}');
           },
           onError: (err, msg) {
-            debugPrint('Agora error: \(err\)msg');
-          },
+  debugPrint('Agora error: $err $msg');
+},
         ),
       );
 
@@ -2359,7 +2359,8 @@ class _MapScreenState extends State {
     },
   ),
 ],
-
+),
+      
       // ======================================================
       // BODY
       // ======================================================
