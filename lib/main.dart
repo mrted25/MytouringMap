@@ -174,8 +174,8 @@ class _MapScreenState extends State {
   String _myName = 'Road Captain';
   String _myVehicleType = 'Motor';
 
-  StreamSubscription>>?
-      _membersSubscription;
+  StreamSubscription<QuerySnapshot>?
+    _membersSubscription;
 
   DateTime? _lastMemberUpload;
 
@@ -1013,7 +1013,9 @@ class _MapScreenState extends State {
   // NOMINATIM SEARCH
   // ==========================================================
 
-  Future>> _searchPlaces(String query) async {
+  Future<List<Map<String, dynamic>>> _searchPlaces(
+  String query,
+) async {
     final trimmed = query.trim();
 
     if (trimmed.isEmpty) return [];
