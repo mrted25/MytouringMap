@@ -2056,7 +2056,7 @@ class _MapScreenState extends State {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            '\(_myVehicleType •\){_isTouring ? 'Riding' : 'Joined'}',
+                            '$_myVehicleType • ${_isTouring ? 'Riding' : 'Joined'}',
                           ),
                           trailing: _isCaptain
                               ? const Chip(label: Text('CAPTAIN'))
@@ -2081,8 +2081,8 @@ class _MapScreenState extends State {
                                 ),
                                 title: Text(member.name),
                                 subtitle: Text(
-                                  '\({member.vehicleType} •\){member.status}',
-                                ),
+  '${member.vehicleType} • ${member.status}',
+),
                                 trailing: Transform.rotate(
                                   angle: member.heading * math.pi / 180,
                                   alignment: Alignment.center,
@@ -2330,25 +2330,24 @@ class _MapScreenState extends State {
               }
             },
           ),
-          PopupMenuButton(
-            icon: const Icon(Icons.layers),
-            tooltip: 'Map Style',
-            onSelected: (String key) {
-              setState(() {
-                _selectedTile = key;
-              });
-            },
-            itemBuilder: (BuildContext context) {
-              return _tileProviders.keys.map((String key) {
-                return PopupMenuItem(
-                  value: key,
-                  child: Text(key),
-                );
-              }).toList();
-            },
-          ),
-        ],
-      ),
+          PopupMenuButton<String>(
+  icon: const Icon(Icons.layers),
+  tooltip: 'Map Style',
+  onSelected: (String key) {
+    setState(() {
+      _selectedTile = key;
+    });
+  },
+  itemBuilder: (BuildContext context) {
+    return _tileProviders.keys
+        .map<PopupMenuEntry<String>>((String key) {
+      return PopupMenuItem<String>(
+        value: key,
+        child: Text(key),
+      );
+    }).toList();
+  },
+),
 
       // ======================================================
       // BODY
