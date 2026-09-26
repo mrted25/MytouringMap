@@ -4435,13 +4435,17 @@ if (_activeTouringId != null) ...[
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-          ),
-        ),
-      ],
+            letterSpacing: 2,),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     ),
   ),
-],
+),
 
           // ==================================================
 // MAP PICKING BANNER
