@@ -1051,19 +1051,21 @@ class _MapScreenState extends State {
     if (decoded is! List) return [];
 
     return decoded
-        .whereType()
-        .map>((item) => Map.from(item))
-        .toList();
+    .whereType<Map>()
+    .map<Map<String, dynamic>>(
+      (item) => Map<String, dynamic>.from(item),
+    )
+    .toList();
   }
 
   // ==========================================================
   // SEARCH PLACE DIALOG
   // ==========================================================
 
-  Future _showPlaceSearchDialog(String target) async {
-    final controller = TextEditingController();
-    List> results = [];
-    bool isSearching = false;
+  Future<void> _showPlaceSearchDialog(String target) async {
+  final controller = TextEditingController();
+  List<Map<String, dynamic>> results = [];
+  bool isSearching = false;
 
     await showDialog(
       context: context,
