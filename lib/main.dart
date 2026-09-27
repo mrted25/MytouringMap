@@ -2842,7 +2842,7 @@ class _MapScreenState extends State {
 
           Positioned(
             right: 10,
-            bottom: 72,
+            bottom: 125,
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 7,
