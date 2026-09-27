@@ -2192,35 +2192,53 @@ class _MapScreenState extends State {
   // ==========================================================
 
   Future _refreshAgoraPTT() async {
-    try {
-      if (kIsWeb) return;
+  try {
+    if (kIsWeb) return;
 
-      if (mounted) {
-        setState(() {
-          _microphoneEnabled = false;
-          _isPttInitialized = false;
-          _isTalking = false;
-        });
-      }
+    if (mounted) {
+      setState(() {
+        _microphoneEnabled = false;
+        _isPttInitialized = false;
+        _isTalking = false;
+        _microphoneConnecting = true;
+      });
+    }
 
-      if (_engine != null) {
-        try {
-          await _engine!.leaveChannel();
-        } catch (_) {}
+    if (_engine != null) {
+      try {
+        await _engine!.leaveChannel();
+      } catch (_) {}
 
-        try {
-          await _engine!.release();
-        } catch (_) {}
+      try {
+        await _engine!.release();
+      } catch (_) {}
 
-        _engine = null;
-      }
+      _engine = null;
+    }
 
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _initAgoraPTT();
-    } catch (e) {
-      debugPrint('Agora refresh error: $e');
+    await Future.delayed(
+      const Duration(milliseconds: 500),
+    );
+
+    await _initAgoraPTT();
+
+    if (mounted) {
+      setState(() {
+        _microphoneConnecting = false;
+      });
+    }
+  } catch (e) {
+    debugPrint('Agora refresh error: $e');
+
+    if (mounted) {
+      setState(() {
+        _microphoneConnecting = false;
+        _microphoneEnabled = false;
+        _isPttInitialized = false;
+      });
     }
   }
+}
 
   // ==========================================================
   // PTT START & STOP
@@ -2422,7 +2440,7 @@ class _MapScreenState extends State {
                       height: 90,
                       rotate: true,
                       child: Transform.rotate(
-                        angle: (_heading - 60) * math.pi / 180,
+                        angle: (_heading 0) * math.pi / 180,
                         alignment: Alignment.center,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -2518,7 +2536,7 @@ class _MapScreenState extends State {
                         height: 100,
                         rotate: true,
                         child: Transform.rotate(
-                          angle: (member.heading - 60) * math.pi / 180,
+                          angle: (member.heading 0) * math.pi / 180,
                           alignment: Alignment.center,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -2613,22 +2631,34 @@ class _MapScreenState extends State {
                         ),
                         const Spacer(),
                         Icon(
-                          _microphoneEnabled ? Icons.mic : Icons.mic_off,
-                          size: 16,
-                          color: _microphoneEnabled ? Colors.green : Colors.red,
-                        ),
+  _microphoneConnecting
+      ? Icons.sync
+      : _microphoneEnabled
+          ? Icons.mic
+          : Icons.mic_off,
+  size: 16,
+  color: _microphoneConnecting
+      ? Colors.orange
+      : _microphoneEnabled
+          ? Colors.green
+          : Colors.red,
+),
                         const SizedBox(width: 4),
                         Text(
-                          _microphoneEnabled
-                              ? 'Microphone Aktif'
-                              : 'Microphone Tidak Aktif',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: _microphoneEnabled
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
+  _microphoneConnecting
+      ? 'Menghubungkan Microphone...'
+      : _microphoneEnabled
+          ? 'Microphone Aktif'
+          : 'Microphone Tidak Aktif',
+  style: TextStyle(
+    fontSize: 11,
+    color: _microphoneConnecting
+        ? Colors.orange
+        : _microphoneEnabled
+            ? Colors.green
+            : Colors.red,
+  ),
+),
                         IconButton(
                           onPressed: _refreshAgoraPTT,
                           icon: const Icon(Icons.refresh, size: 16),
