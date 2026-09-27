@@ -213,6 +213,7 @@ class _MapScreenState extends State {
   bool _isPttInitialized = false;
   bool _isTalking = false;
   bool _microphoneEnabled = false;
+  bool _microphoneConnecting = false;
 
   // ==========================================================
   // INIT
@@ -2440,7 +2441,7 @@ class _MapScreenState extends State {
                       height: 90,
                       rotate: true,
                       child: Transform.rotate(
-                        angle: (_heading 0) * math.pi / 180,
+                        angle: _heading * math.pi / 180,
                         alignment: Alignment.center,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -2536,7 +2537,7 @@ class _MapScreenState extends State {
                         height: 100,
                         rotate: true,
                         child: Transform.rotate(
-                          angle: (member.heading 0) * math.pi / 180,
+                          angle: member.heading * math.pi / 180,
                           alignment: Alignment.center,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
