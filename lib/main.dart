@@ -801,21 +801,14 @@ class _MapScreenState extends State {
         });
       }
     } catch (e) {
-      debugPrint('Route error: $e');
+  debugPrint('Route error: $e');
 
-      if (mounted) {
-        setState(() {
-          _isLoadingRoute = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal mencari rute: $e'),
-          ),
-        );
-      }
-    }
+  if (mounted) {
+    setState(() {
+      _isLoadingRoute = false;
+    });
   }
+}
 
   // ==========================================================
   // START TOURING
