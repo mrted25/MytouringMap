@@ -24,7 +24,6 @@ import 'firebase_options.dart';
 import 'services/touring_service.dart';
 
 const String agoraAppId = '398d30b96cae43aeac064c7a0fa9add8';
-const String channelName = 'touring_room_1';
 
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -210,10 +209,12 @@ class _MapScreenState extends State {
 
   RtcEngine? _engine;
 
-  bool _isPttInitialized = false;
-  bool _isTalking = false;
-  bool _microphoneEnabled = false;
-  bool _microphoneConnecting = false;
+String? _agoraChannelName;
+
+bool _isPttInitialized = false;
+bool _isTalking = false;
+bool _microphoneEnabled = false;
+bool _microphoneConnecting = false;
 
   // ==========================================================
   // INIT
@@ -392,6 +393,10 @@ class _MapScreenState extends State {
       });
 
       _subscribeToTouringMembers(touringId);
+
+      await _joinAgoraTouringChannel(
+  touringId,
+);
 
       await _saveMyMember(
         status: _isTouring ? 'Riding' : 'Joined',
@@ -935,6 +940,14 @@ class _MapScreenState extends State {
           SetOptions(merge: true),
         );
       }
+
+      if (_engine != null) {
+  try {
+    await _engine!.leaveChannel();
+  } catch (_) {}
+}
+
+_agoraChannelName = null;
 
       await _clearTouringSession();
       await _membersSubscription?.cancel();
@@ -1507,8 +1520,12 @@ class _MapScreenState extends State {
       });
 
       await _saveTouringSession();
-      await _saveMyMember(status: 'Joined');
-      _subscribeToTouringMembers(touringDoc.id);
+await _saveMyMember(status: 'Joined');
+_subscribeToTouringMembers(touringDoc.id);
+
+await _joinAgoraTouringChannel(
+  touringDoc.id,
+);
 
       await _showTouringCreatedDialog(name, code);
     } catch (e) {
@@ -2118,70 +2135,158 @@ class _MapScreenState extends State {
   // ==========================================================
 
   Future _initAgoraPTT() async {
-    try {
-      if (kIsWeb) return;
+  try {
+    if (kIsWeb) return;
 
-      final micStatus = await Permission.microphone.request();
+    final micStatus = await Permission.microphone.request();
 
-      if (!micStatus.isGranted) {
-        if (mounted) {
-          setState(() {
-            _microphoneEnabled = false;
-          });
-        }
-        return;
-      }
-
-      final engine = createAgoraRtcEngine();
-
-      await engine.initialize(const RtcEngineContext(appId: agoraAppId));
-      await engine.enableAudio();
-      await engine.muteLocalAudioStream(true);
-
-      await engine.setChannelProfile(
-        ChannelProfileType.channelProfileCommunication,
-      );
-
-      await engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
-
-      engine.registerEventHandler(
-        RtcEngineEventHandler(
-          onJoinChannelSuccess: (connection, elapsed) {
-            debugPrint('Agora joined: ${connection.channelId}');
-          },
-          onError: (err, msg) {
-  debugPrint('Agora error: $err $msg');
-},
-        ),
-      );
-
-      _engine = engine;
-
-      await engine.joinChannel(
-        token: '',
-        channelId: channelName,
-        uid: 0,
-        options: const ChannelMediaOptions(),
-      );
-
+    if (!micStatus.isGranted) {
       if (mounted) {
         setState(() {
-          _isPttInitialized = true;
-          _microphoneEnabled = true;
-        });
-      }
-    } catch (e) {
-      debugPrint('Agora init error: $e');
-
-      if (mounted) {
-        setState(() {
-          _isPttInitialized = false;
           _microphoneEnabled = false;
+          _isPttInitialized = false;
         });
       }
+      return;
+    }
+
+    final engine = createAgoraRtcEngine();
+
+    await engine.initialize(
+      const RtcEngineContext(
+        appId: agoraAppId,
+      ),
+    );
+
+    await engine.enableAudio();
+
+    await engine.muteLocalAudioStream(true);
+
+    await engine.setChannelProfile(
+      ChannelProfileType.channelProfileCommunication,
+    );
+
+    await engine.setClientRole(
+      role: ClientRoleType.clientRoleBroadcaster,
+    );
+
+    engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (connection, elapsed) {
+          debugPrint(
+            'Agora joined: ${connection.channelId}',
+          );
+        },
+
+        onUserJoined: (connection, remoteUid, elapsed) {
+          debugPrint(
+            'Agora remote user joined: $remoteUid',
+          );
+        },
+
+        onUserOffline: (connection, remoteUid, reason) {
+          debugPrint(
+            'Agora remote user offline: $remoteUid',
+          );
+        },
+
+        onError: (err, msg) {
+          debugPrint(
+            'Agora error: $err $msg',
+          );
+        },
+      ),
+    );
+
+    _engine = engine;
+
+    if (mounted) {
+      setState(() {
+        _microphoneEnabled = false;
+        _isPttInitialized = false;
+      });
+    }
+
+    // Kalau touring sudah diketahui,
+    // langsung masuk channel touring tersebut.
+    if (_activeTouringId != null) {
+      await _joinAgoraTouringChannel(
+        _activeTouringId!,
+      );
+    }
+  } catch (e) {
+    debugPrint('Agora init error: $e');
+
+    if (mounted) {
+      setState(() {
+        _isPttInitialized = false;
+        _microphoneEnabled = false;
+      });
     }
   }
+}
+  
+Future _joinAgoraTouringChannel(String touringId) async {
+  if (kIsWeb) return;
+  if (_engine == null) return;
 
+  final channel = 'touring_$touringId';
+
+  try {
+    if (mounted) {
+      setState(() {
+        _microphoneConnecting = true;
+        _isPttInitialized = false;
+        _microphoneEnabled = false;
+      });
+    }
+
+    // Kalau sebelumnya masih berada di channel lain,
+    // keluar terlebih dahulu.
+    try {
+      await _engine!.leaveChannel();
+    } catch (_) {}
+
+    await Future.delayed(
+      const Duration(milliseconds: 300),
+    );
+
+    await _engine!.joinChannel(
+      token: '',
+      channelId: channel,
+      uid: 0,
+      options: const ChannelMediaOptions(),
+    );
+
+    _agoraChannelName = channel;
+
+    if (mounted) {
+      setState(() {
+        _isPttInitialized = true;
+        _microphoneEnabled = true;
+        _microphoneConnecting = false;
+      });
+    }
+
+    debugPrint(
+      'Agora touring channel: $channel',
+    );
+  } catch (e) {
+    debugPrint(
+      'Agora join touring channel error: $e',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isPttInitialized = false;
+        _microphoneEnabled = false;
+        _microphoneConnecting = false;
+      });
+    }
+  }
+}
+  
+  
   // ==========================================================
   // REFRESH / RECONNECT PTT
   // ==========================================================
@@ -2217,11 +2322,17 @@ class _MapScreenState extends State {
 
     await _initAgoraPTT();
 
-    if (mounted) {
-      setState(() {
-        _microphoneConnecting = false;
-      });
-    }
+if (_activeTouringId != null) {
+  await _joinAgoraTouringChannel(
+    _activeTouringId!,
+  );
+}
+
+if (mounted) {
+  setState(() {
+    _microphoneConnecting = false;
+  });
+}
   } catch (e) {
     debugPrint('Agora refresh error: $e');
 
