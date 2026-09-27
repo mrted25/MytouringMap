@@ -800,15 +800,16 @@ class _MapScreenState extends State {
           _isLoadingRoute = false;
         });
       }
-    } catch (e) {
-  debugPrint('Route error: $e');
+        } catch (e) {
+      debugPrint('Route error: $e');
 
-  if (mounted) {
-    setState(() {
-      _isLoadingRoute = false;
-    });
+      if (mounted) {
+        setState(() {
+          _isLoadingRoute = false;
+        });
+      }
+    }
   }
-}
 
   // ==========================================================
   // START TOURING
