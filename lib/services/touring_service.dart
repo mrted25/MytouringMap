@@ -46,3 +46,29 @@ class TouringService {
     return code;
   }
 }
+
+
+Future<void> updateTouringRoute({
+  required String touringId,
+  required List<GeoPoint> routePoints,
+  required double startLat,
+  required double startLng,
+  required double destinationLat,
+  required double destinationLng,
+  required double distanceKm,
+  required double durationMinutes,
+}) async {
+  await _firestore
+      .collection('tourings')
+      .doc(touringId)
+      .update({
+    'startLat': startLat,
+    'startLng': startLng,
+    'destinationLat': destinationLat,
+    'destinationLng': destinationLng,
+    'routePoints': routePoints,
+    'routeDistanceKm': distanceKm,
+    'routeDurationMinutes': durationMinutes,
+    'routeUpdatedAt': FieldValue.serverTimestamp(),
+  });
+}
