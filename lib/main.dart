@@ -175,6 +175,9 @@ class _MapScreenState extends State {
 
   StreamSubscription<QuerySnapshot>?
     _membersSubscription;
+  
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+    _touringSubscription;
 
   DateTime? _lastMemberUpload;
 
@@ -648,23 +651,22 @@ bool _microphoneConnecting = false;
       _updateMyMemberLocation(position);
     }
 
-    if (_isTouring && _destinasi != null) {
-      if (_lastRoutePosition == null) {
-        _getRoadRoute();
-      } else {
-        final distance = Geolocator.distanceBetween(
-          _lastRoutePosition!.latitude,
-          _lastRoutePosition!.longitude,
-          position.latitude,
-          position.longitude,
-        );
+    if (_isCaptain && _isTouring && _destinasi != null) {
+  if (_lastRoutePosition == null) {
+    _getRoadRoute();
+  } else {
+    final distance = Geolocator.distanceBetween(
+      _lastRoutePosition!.latitude,
+      _lastRoutePosition!.longitude,
+      position.latitude,
+      position.longitude,
+    );
 
-        if (distance >= _rerouteDistanceMeters) {
-          _getRoadRoute();
-        }
-      }
+    if (distance >= _rerouteDistanceMeters) {
+      _getRoadRoute();
     }
   }
+}
 
   // ==========================================================
   // CENTER LOCATION
@@ -794,6 +796,32 @@ bool _microphoneConnecting = false;
       }
 
       final selected = options[selectedIndex];
+
+      if (_isCaptain && _activeTouringId != null) {
+  try {
+    final routeGeoPoints = selected.points
+        .map<GeoPoint>(
+          (point) => GeoPoint(
+            point.latitude,
+            point.longitude,
+          ),
+        )
+        .toList();
+
+    await TouringService().updateTouringRoute(
+      touringId: _activeTouringId!,
+      routePoints: routeGeoPoints,
+      startLat: start.latitude,
+      startLng: start.longitude,
+      destinationLat: _destinasi!.latitude,
+      destinationLng: _destinasi!.longitude,
+      distanceKm: selected.distanceKm,
+      durationMinutes: selected.durationMinutes,
+    );
+  } catch (e) {
+    debugPrint('Save touring route error: $e');
+  }
+}
 
       if (mounted) {
         setState(() {
@@ -1769,9 +1797,7 @@ await _joinAgoraTouringChannel(
       await _saveMyMember(status: 'Joined');
       _subscribeToTouringMembers(touringDoc.id);
 
-      if (_currentPosition != null && _destinasi != null) {
-        await _getRoadRoute(fromCurrentLocation: _isTouring);
-      }
+     
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1870,6 +1896,8 @@ await _joinAgoraTouringChannel(
   void _subscribeToTouringMembers(String touringId) {
     _membersSubscription?.cancel();
 
+    _subscribeToTouringRoute(touringId);
+
     _membersSubscription = _firestore
         .collection('tourings')
         .doc(touringId)
@@ -1919,7 +1947,80 @@ await _joinAgoraTouringChannel(
       onError: (error) => debugPrint('Member listener error: $error'),
     );
   }
+  
+void _subscribeToTouringRoute(String touringId) {
+  _touringSubscription?.cancel();
 
+  _touringSubscription = _firestore
+      .collection('tourings')
+      .doc(touringId)
+      .snapshots()
+      .listen(
+    (snapshot) {
+      if (!snapshot.exists) return;
+
+      final data = snapshot.data();
+      if (data == null) return;
+
+      final routeData = data['routePoints'];
+
+      if (routeData is! List || routeData.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _routePoints = [];
+            _routeOptions = [];
+            _routeDistanceKm = 0;
+            _routeDurationMinutes = 0;
+          });
+        }
+        return;
+      }
+
+      final points = <LatLng>[];
+
+      for (final item in routeData) {
+        if (item is GeoPoint) {
+          points.add(
+            LatLng(
+              item.latitude,
+              item.longitude,
+            ),
+          );
+        }
+      }
+
+      if (points.isEmpty) return;
+
+      final distanceKm =
+          (data['routeDistanceKm'] as num?)?.toDouble() ?? 0;
+
+      final durationMinutes =
+          (data['routeDurationMinutes'] as num?)?.toDouble() ?? 0;
+
+      if (mounted) {
+        setState(() {
+          _routePoints = points;
+          _routeDistanceKm = distanceKm;
+          _routeDurationMinutes = durationMinutes;
+
+          _routeOptions = [
+            RouteOption(
+              label: 'Rute Captain',
+              points: points,
+              distanceKm: distanceKm,
+              durationMinutes: durationMinutes,
+            ),
+          ];
+
+          _selectedRouteIndex = 0;
+        });
+      }
+    },
+    onError: (error) {
+      debugPrint('Touring route listener error: $error');
+    },
+  );
+}
   // ==========================================================
   // MEMBER COLOR
   // ==========================================================
@@ -2385,14 +2486,15 @@ if (mounted) {
   // ==========================================================
 
   @override
-  void dispose() {
-    _positionStream?.cancel();
-    _membersSubscription?.cancel();
-    _engine?.leaveChannel();
-    _engine?.release();
+void dispose() {
+  _positionStream?.cancel();
+  _membersSubscription?.cancel();
+  _touringSubscription?.cancel();
+  _engine?.leaveChannel();
+  _engine?.release();
 
-    super.dispose();
-  }
+  super.dispose();
+}
 
   // ==========================================================
   // BUILD
