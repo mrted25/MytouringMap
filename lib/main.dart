@@ -2306,6 +2306,50 @@ Future _joinTestPtt() async {
 }
 
   
+  Future _startTestPtt() async {
+  if (!_isTestPttJoined || _engine == null) {
+    return;
+  }
+
+  try {
+    await _engine!.muteLocalAudioStream(false);
+
+    if (mounted) {
+      setState(() {
+        _isTestPttTalking = true;
+      });
+    }
+
+    debugPrint('TEST PTT TALKING');
+  } catch (e) {
+    debugPrint(
+      'TEST PTT start error: $e',
+    );
+  }
+}
+
+Future _stopTestPtt() async {
+  if (!_isTestPttJoined || _engine == null) {
+    return;
+  }
+
+  try {
+    await _engine!.muteLocalAudioStream(true);
+
+    if (mounted) {
+      setState(() {
+        _isTestPttTalking = false;
+      });
+    }
+
+    debugPrint('TEST PTT STOP');
+  } catch (e) {
+    debugPrint(
+      'TEST PTT stop error: $e',
+    );
+  }
+}
+  
   // ==========================================================
   // AGORA
   // ==========================================================
