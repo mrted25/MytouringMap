@@ -2358,12 +2358,16 @@ Future _joinAgoraTouringChannel(String touringId) async {
   channelId: channel,
   uid: 0,
   options: const ChannelMediaOptions(
-    channelProfile: ChannelProfileType.channelProfileCommunication,
-    clientRoleType: ClientRoleType.clientRoleBroadcaster,
+    channelProfile:
+        ChannelProfileType.channelProfileCommunication,
+    clientRoleType:
+        ClientRoleType.clientRoleBroadcaster,
     publishMicrophoneTrack: true,
     autoSubscribeAudio: true,
   ),
 );
+
+await _engine!.muteAllRemoteAudioStreams(false);
 
     _agoraChannelName = channel;
 
