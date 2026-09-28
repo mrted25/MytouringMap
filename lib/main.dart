@@ -2354,11 +2354,16 @@ Future _joinAgoraTouringChannel(String touringId) async {
     );
 
     await _engine!.joinChannel(
-      token: '',
-      channelId: channel,
-      uid: 0,
-      options: const ChannelMediaOptions(),
-    );
+  token: '',
+  channelId: channel,
+  uid: 0,
+  options: const ChannelMediaOptions(
+    channelProfile: ChannelProfileType.channelProfileCommunication,
+    clientRoleType: ClientRoleType.clientRoleBroadcaster,
+    publishMicrophoneTrack: true,
+    autoSubscribeAudio: true,
+  ),
+);
 
     _agoraChannelName = channel;
 
