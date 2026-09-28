@@ -218,6 +218,8 @@ bool _isPttInitialized = false;
 bool _isTalking = false;
 bool _microphoneEnabled = false;
 bool _microphoneConnecting = false;
+bool _isTestPttJoined = false;
+bool _isTestPttTalking = false;
 
   // ==========================================================
   // INIT
@@ -2232,6 +2234,78 @@ void _subscribeToTouringRoute(String touringId) {
     );
   }
 
+
+// ==========================================================
+// TEST PTT
+// ==========================================================
+
+Future _joinTestPtt() async {
+  if (kIsWeb) return;
+  if (_engine == null) return;
+
+  const testChannel = 'test_ptt_mr_ted';
+
+  try {
+    setState(() {
+      _isTestPttJoined = false;
+      _isTestPttTalking = false;
+    });
+
+    try {
+      await _engine!.leaveChannel();
+    } catch (_) {}
+
+    await Future.delayed(
+      const Duration(milliseconds: 300),
+    );
+
+    await _engine!.joinChannel(
+      token: '',
+      channelId: testChannel,
+      uid: 0,
+      options: const ChannelMediaOptions(
+        channelProfile:
+            ChannelProfileType.channelProfileCommunication,
+        clientRoleType:
+            ClientRoleType.clientRoleBroadcaster,
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
+      ),
+    );
+
+    await _engine!.muteLocalAudioStream(true);
+
+    await _engine!.muteAllRemoteAudioStreams(false);
+
+    await _engine!.adjustPlaybackSignalVolume(100);
+
+    _agoraChannelName = testChannel;
+
+    if (mounted) {
+      setState(() {
+        _isTestPttJoined = true;
+        _isTestPttTalking = false;
+      });
+    }
+
+    debugPrint(
+      'TEST PTT joined: $testChannel',
+    );
+  } catch (e) {
+    debugPrint(
+      'TEST PTT join error: $e',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isTestPttJoined = false;
+        _isTestPttTalking = false;
+      });
+    }
+  }
+}
+
+  
   // ==========================================================
   // AGORA
   // ==========================================================
