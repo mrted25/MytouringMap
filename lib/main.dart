@@ -667,6 +667,7 @@ bool _microphoneConnecting = false;
     }
   }
 }
+  }
 
   // ==========================================================
   // CENTER LOCATION
