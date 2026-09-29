@@ -19,6 +19,7 @@ dependencies:
   cloud_firestore: ^5.6.12
   firebase_auth: ^5.7.0
   shared_preferences: ^2.5.3
+  wakelock_plus: ^1.4.0
 
 dev_dependencies:
   flutter_test:
