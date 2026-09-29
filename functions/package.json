@@ -1,0 +1,17 @@
+{
+  "name": "functions",
+  "description": "Agora RTC Token Server for MyTouring",
+  "scripts": {
+    "start": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0",
+    "agora-access-token": "^2.0.4"
+  },
+  "private": true
+}
