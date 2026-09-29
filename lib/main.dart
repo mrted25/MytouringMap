@@ -2381,12 +2381,21 @@ Future _stopTestPtt() async {
     final engine = createAgoraRtcEngine();
 
     await engine.initialize(
-      const RtcEngineContext(
-        appId: agoraAppId,
-      ),
-    );
+  const RtcEngineContext(
+    appId: agoraAppId,
+  ),
+);
 
-    await engine.enableAudio();
+// Audio untuk komunikasi PTT / Walkie-Talkie
+await engine.setAudioProfile(
+  profile: AudioProfileType.audioProfileSpeechStandard,
+  scenario: AudioScenarioType.audioScenarioGameStreaming,
+);
+
+// Gunakan speaker HP sebagai output utama
+await engine.setDefaultAudioRouteToSpeakerphone(true);
+
+await engine.enableAudio();
 
     await engine.muteLocalAudioStream(true);
 
