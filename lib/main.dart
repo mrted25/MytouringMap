@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 import 'services/touring_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 const String agoraAppId = '398d30b96cae43aeac064c7a0fa9add8';
 
