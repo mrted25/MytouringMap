@@ -2393,10 +2393,18 @@ Future _stopTestPtt() async {
     engine.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (connection, elapsed) {
-          debugPrint(
-            'Agora joined: ${connection.channelId}',
-          );
-        },
+  debugPrint(
+    'Agora joined: ${connection.channelId}',
+  );
+
+  if (mounted) {
+    setState(() {
+      _isPttInitialized = true;
+      _microphoneEnabled = true;
+      _microphoneConnecting = false;
+    });
+  }
+},
 
         onUserJoined: (connection, remoteUid, elapsed) {
           debugPrint(
