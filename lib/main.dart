@@ -398,6 +398,8 @@ bool _isTestPttTalking = false;
         }
       });
 
+      await WakelockPlus.enable();
+
       _subscribeToTouringMembers(touringId);
 
       await _joinAgoraTouringChannel(
@@ -956,10 +958,12 @@ bool _isTestPttTalking = false;
 
     if (confirmed != true) return;
 
-    try {
-      setState(() {
-        _isTouring = false;
-      });
+try {
+  await WakelockPlus.disable();
+
+  setState(() {
+    _isTouring = false;
+  });
 
       await _saveMyMember(status: 'Finished');
 
@@ -1551,6 +1555,8 @@ _agoraChannelName = null;
         _myVehicleType = _isMotorMode ? 'Motor' : 'SUV';
       });
 
+      await WakelockPlus.enable();
+
       await _saveTouringSession();
 await _saveMyMember(status: 'Joined');
 _subscribeToTouringMembers(touringDoc.id);
@@ -1797,6 +1803,7 @@ await _joinAgoraTouringChannel(
         }
       });
 
+      await WakelockPlus.enable();
       await _saveTouringSession();
       await _saveMyMember(status: 'Joined');
       _subscribeToTouringMembers(touringDoc.id);
