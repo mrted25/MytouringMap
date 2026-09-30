@@ -156,6 +156,9 @@ class _MapScreenState extends State {
   bool _locationReady = false;
 
   double _heading = 0;
+  bool _followNavigation = false;
+
+const double _touringMapZoom = 17;
 
   // ==========================================================
   // TOURING
@@ -686,13 +689,28 @@ bool _isTestPttTalking = false;
       return;
     }
 
-    _mapController.move(
-      LatLng(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      ),
-      16,
-    );
+    if (_followNavigation) {
+  _followTouringPosition(position);
+} else {
+  _mapController.move(
+    LatLng(position.latitude, position.longitude),
+    _mapController.camera.zoom,
+  );
+}
+
+  void _followTouringPosition(Position position) {
+  if (!_followNavigation) return;
+
+  final point = LatLng(
+    position.latitude,
+    position.longitude,
+  );
+
+  _mapController.moveAndRotate(
+    point,
+    _touringMapZoom,
+    -_heading,
+  );
   }
 
     // ==========================================================
@@ -872,9 +890,10 @@ bool _isTestPttTalking = false;
     }
 
     setState(() {
-      _isTouring = true;
-      _touringStartTime = DateTime.now();
-    });
+  _isTouring = true;
+  _touringStartTime = DateTime.now();
+  _followNavigation = true;
+});
 
     if (_isCaptain && _activeTouringId != null) {
       try {
@@ -894,6 +913,9 @@ bool _isTestPttTalking = false;
     }
 
     await _getRoadRoute(fromCurrentLocation: true);
+    if (_currentPosition != null) {
+  _followTouringPosition(_currentPosition!);
+}
     await _saveMyMember(status: 'Riding');
     await _saveTouringSession();
 
@@ -910,8 +932,9 @@ bool _isTestPttTalking = false;
 
   Future _stopTouring() async {
     setState(() {
-      _isTouring = false;
-    });
+  _isTouring = false;
+  _followNavigation = false;
+});
 
     await _saveMyMember(status: 'Stopped');
     await _saveTouringSession();
