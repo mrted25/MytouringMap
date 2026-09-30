@@ -2475,7 +2475,7 @@ await engine.enableAudio();
   try {
     final uri = Uri.parse(
       'https://mytouringmap.vercel.app/api/agora'
-      '?channelName=${Uri.encodeComponent(channel)}'
+      '?channel=${Uri.encodeComponent(channel)}'
       '&uid=0',
     );
 
