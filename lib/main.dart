@@ -2470,6 +2470,33 @@ await engine.enableAudio();
     }
   }
 }
+
+  Future<String?> _getAgoraToken(String channel) async {
+  try {
+    final uri = Uri.parse(
+      'https://mytouringmap.vercel.app/api/agora'
+      '?channelName=${Uri.encodeComponent(channel)}'
+      '&uid=0',
+    );
+
+    final response = await http.get(uri);
+
+    debugPrint(
+      'Agora token server: ${response.statusCode} ${response.body}',
+    );
+
+    if (response.statusCode != 200) {
+      return null;
+    }
+
+    final data = jsonDecode(response.body);
+
+    return data['token'] as String?;
+  } catch (e) {
+    debugPrint('Get Agora token error: $e');
+    return null;
+  }
+}
   
 Future _joinAgoraTouringChannel(String touringId) async {
   if (kIsWeb) return;
@@ -2496,8 +2523,16 @@ Future _joinAgoraTouringChannel(String touringId) async {
       const Duration(milliseconds: 300),
     );
 
-    await _engine!.joinChannel(
-  token: '',
+    final token = await _getAgoraToken(channel);
+
+if (token == null || token.isEmpty) {
+  throw Exception(
+    'Agora token tidak berhasil didapatkan',
+  );
+}
+
+await _engine!.joinChannel(
+  token: token,
   channelId: channel,
   uid: 0,
   options: const ChannelMediaOptions(
