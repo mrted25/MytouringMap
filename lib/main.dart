@@ -156,10 +156,10 @@ class _MapScreenState extends State {
   bool _locationReady = false;
 
   double _heading = 0;
-  bool _followNavigation = false;
+bool _followNavigation = false;
 
-const double _touringMapZoom = 17;
-
+static const double _touringMapZoom = 17;
+  
   // ==========================================================
   // TOURING
   // ==========================================================
@@ -389,6 +389,7 @@ bool _isTestPttTalking = false;
         _myName = savedMyName;
         _myVehicleType = savedVehicle;
         _isTouring = savedIsTouring;
+          _followNavigation = savedIsTouring;
         _isMotorMode = savedVehicle.toLowerCase() == 'motor' ||
             savedVehicle.toLowerCase() == 'scooter';
 
@@ -678,27 +679,37 @@ bool _isTestPttTalking = false;
   }
 
   // ==========================================================
-  // CENTER LOCATION
-  // ==========================================================
+// CENTER LOCATION
+// ==========================================================
 
-  void _centerMyLocation() {
-    if (_currentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lokasi GPS belum tersedia.')),
-      );
-      return;
-    }
+void _centerMyLocation() {
+  if (_currentPosition == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Lokasi GPS belum tersedia.'),
+      ),
+    );
+    return;
+  }
 
-    if (_followNavigation) {
-  _followTouringPosition(position);
-} else {
-  _mapController.move(
-    LatLng(position.latitude, position.longitude),
-    _mapController.camera.zoom,
-  );
+  if (_followNavigation) {
+    _followTouringPosition(_currentPosition!);
+  } else {
+    _mapController.move(
+      LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      ),
+      _mapController.camera.zoom,
+    );
+  }
 }
 
-  void _followTouringPosition(Position position) {
+// ==========================================================
+// FOLLOW TOURING POSITION
+// ==========================================================
+
+void _followTouringPosition(Position position) {
   if (!_followNavigation) return;
 
   final point = LatLng(
@@ -711,7 +722,7 @@ bool _isTestPttTalking = false;
     _touringMapZoom,
     -_heading,
   );
-  }
+}
 
     // ==========================================================
   // OSRM ROUTE
@@ -2848,53 +2859,53 @@ void dispose() {
 
               MarkerLayer(
                 markers: [
-                  // MARKER SAYA
-                  if (_currentPosition != null)
-                    Marker(
-                      point: LatLng(
-                        _currentPosition!.latitude,
-                        _currentPosition!.longitude,
-                      ),
-                      width: 80,
-                      height: 90,
-                      rotate: true,
-                      child: Transform.rotate(
-                        angle: _heading * math.pi / 180,
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 2),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.75),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'Saya',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Image.asset(
-                              _isMotorMode
-                                  ? 'assets/metic.png'
-                                  : 'assets/xtrail.png',
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  //// MARKER SAYA
+if (_currentPosition != null)
+  Marker(
+    point: LatLng(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+    ),
+    width: 65,
+    height: 75,
+    rotate: true,
+    child: Transform.rotate(
+      angle: _heading * math.pi / 180,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 1),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 3,
+              vertical: 1,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.55),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: const Text(
+              'Saya',
+              style: TextStyle(
+                fontSize: 8,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Image.asset(
+            _isMotorMode
+                ? 'assets/metic.png'
+                : 'assets/xtrail.png',
+            width: 42,
+            height: 42,
+            fit: BoxFit.contain,
+          ),
+        ],
+      ),
+    ),
+  ),
 
                   // START MARKER (Hanya tampil jika ada koordinat)
                   if (_titikKumpul != null)
@@ -2947,50 +2958,52 @@ void dispose() {
                     ),
 
                   // MARKER ANGGOTA
-                  ..._groupMembers.map(
-                    (member) {
-                      return Marker(
-                        point: member.location,
-                        width: 90,
-                        height: 100,
-                        rotate: true,
-                        child: Transform.rotate(
-                          angle: member.heading * math.pi / 180,
-                          alignment: Alignment.center,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 2),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: member.color.withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
-                                child: Text(
-                                  member.name,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              Image.asset(
-                                _vehicleAsset(member.vehicleType),
-                                width: 55,
-                                height: 55,
-                                fit: BoxFit.contain,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+..._groupMembers.map(
+  (member) {
+    return Marker(
+      point: member.location,
+      width: 65,
+      height: 75,
+      rotate: true,
+      child: Transform.rotate(
+        angle: member.heading * math.pi / 180,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 1),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 3,
+                vertical: 1,
+              ),
+              decoration: BoxDecoration(
+                color: member.color.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                member.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 8,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Image.asset(
+              _vehicleAsset(member.vehicleType),
+              width: 42,
+              height: 42,
+              fit: BoxFit.contain,
+            ),
+          ],
+        ),
+      ),
+    );
+  },
+),
                 ],
               ),
             ],
