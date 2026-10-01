@@ -26,6 +26,35 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 const String agoraAppId = '398d30b96cae43aeac064c7a0fa9add8';
 
+const String trialStartDateKey = 'trial_start_date';
+const int trialDurationDays = 60;
+
+Future<bool> isTrialExpired() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  final savedDate = prefs.getString(trialStartDateKey);
+
+  // Pertama kali aplikasi dijalankan
+  if (savedDate == null) {
+    await prefs.setString(
+      trialStartDateKey,
+      DateTime.now().toIso8601String(),
+    );
+
+    return false;
+  }
+
+  final startDate = DateTime.tryParse(savedDate);
+
+  if (startDate == null) {
+    return false;
+  }
+
+  final elapsed = DateTime.now().difference(startDate);
+
+  return elapsed.inDays >= trialDurationDays;
+}
+
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -33,16 +62,29 @@ Future main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  if (FirebaseAuth.instance.currentUser == null) {
-    await FirebaseAuth.instance.signInAnonymously();
+  final trialExpired = await isTrialExpired();
+
+  if (!trialExpired) {
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
   }
 
-  runApp(const MyApp());
+  runApp(
+    MyApp(
+      trialExpired: trialExpired,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool trialExpired;
 
+  const MyApp({
+    super.key,
+    required this.trialExpired,
+  });
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -53,7 +95,81 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
-      home: const MapScreen(),
+      home: trialExpired
+    ? const TrialExpiredScreen()
+    : const MapScreen(),
+    );
+  }
+}
+class TrialExpiredScreen extends StatelessWidget {
+  const TrialExpiredScreen({super.key});
+
+  void _exitApp() {
+    SystemNavigator.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(30),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.lock_clock,
+                  size: 80,
+                ),
+
+                const SizedBox(height: 25),
+
+                const Text(
+                  'Versi Uji Coba 60 Hari',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+
+                const Text(
+                  'Masa uji coba aplikasi telah berakhir.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                const Text(
+                  'Untuk melanjutkan penggunaan aplikasi, '
+                  'silakan hubungi Mr. Ted.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                  ),
+                ),
+
+                const SizedBox(height: 35),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _exitApp,
+                    icon: const Icon(Icons.exit_to_app),
+                    label: const Text('Keluar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
