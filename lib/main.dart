@@ -744,7 +744,6 @@ bool _isTestPttTalking = false;
   }
 
   void _handlePosition(Position position) {
-  void _handlePosition(Position position) {
   if (!mounted) return;
 
   // ==========================================================
