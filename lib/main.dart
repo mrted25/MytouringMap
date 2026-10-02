@@ -767,10 +767,9 @@ bool _isTestPttTalking = false;
       _locationReady = true;
     });
 
-    _mapController.moveAndRotate(
+    _mapController.move(
   LatLng(position.latitude, position.longitude),
   _mapController.camera.zoom,
-  -_heading,
 );
 
     if (_activeTouringId != null) {
@@ -2985,7 +2984,7 @@ if (_currentPosition != null)
     ),
     width: 65,
     height: 75,
-    rotate: false,
+    rotate: true,
     child: Transform.rotate(
       angle: _heading * math.pi / 180,
       alignment: Alignment.center,
