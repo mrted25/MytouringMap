@@ -272,6 +272,8 @@ class _MapScreenState extends State {
   bool _locationReady = false;
 
   double _heading = 0;
+  double _smoothHeading = 0;
+bool _hasSmoothHeading = false;
 bool _followNavigation = false;
 
 static const double _touringMapZoom = 17;
@@ -742,57 +744,111 @@ bool _isTestPttTalking = false;
   }
 
   void _handlePosition(Position position) {
-    if (!mounted) return;
+  void _handlePosition(Position position) {
+  if (!mounted) return;
 
-    if (position.heading >= 0 && position.speed > 1.0) {
-      _heading = position.heading;
-    }
+  // ==========================================================
+  // UPDATE HEADING DENGAN SMOOTHING
+  // ==========================================================
+  if (position.heading >= 0 && position.speed > 1.0) {
+    final newHeading = position.heading;
 
-    setState(() {
-      _currentPosition = position;
+    if (!_hasSmoothHeading) {
+      _smoothHeading = newHeading;
+      _hasSmoothHeading = true;
+    } else {
+      double diff = newHeading - _smoothHeading;
 
-      if (_destinasi != null) {
-        _distanceInKm = Geolocator.distanceBetween(
-              position.latitude,
-              position.longitude,
-              _destinasi!.latitude,
-              _destinasi!.longitude,
-            ) /
-            1000;
-
-        _estimatedMinutes = (_distanceInKm / 40 * 60).round();
+      // Ambil arah rotasi terpendek
+      if (diff > 180) {
+        diff -= 360;
+      } else if (diff < -180) {
+        diff += 360;
       }
 
-      _gpsStatus = 'GPS aktif';
-      _locationReady = true;
-    });
+      // Smoothing heading
+      _smoothHeading += diff * 0.25;
 
-    _mapController.move(
-  LatLng(position.latitude, position.longitude),
-  _mapController.camera.zoom,
-);
-
-    if (_activeTouringId != null) {
-      _updateMyMemberLocation(position);
+      // Normalisasi 0 - 360
+      if (_smoothHeading < 0) {
+        _smoothHeading += 360;
+      } else if (_smoothHeading >= 360) {
+        _smoothHeading -= 360;
+      }
     }
 
-    if (_isCaptain && _isTouring && _destinasi != null) {
-  if (_lastRoutePosition == null) {
-    _getRoadRoute();
-  } else {
-    final distance = Geolocator.distanceBetween(
-      _lastRoutePosition!.latitude,
-      _lastRoutePosition!.longitude,
-      position.latitude,
-      position.longitude,
-    );
+    _heading = _smoothHeading;
+  }
 
-    if (distance >= _rerouteDistanceMeters) {
+  // ==========================================================
+  // UPDATE POSISI
+  // ==========================================================
+  setState(() {
+    _currentPosition = position;
+
+    // ========================================================
+    // JARAK & ETA KE DESTINASI
+    // ========================================================
+    if (_destinasi != null) {
+      _distanceInKm = Geolocator.distanceBetween(
+            position.latitude,
+            position.longitude,
+            _destinasi!.latitude,
+            _destinasi!.longitude,
+          ) /
+          1000;
+
+      _estimatedMinutes =
+          (_distanceInKm / 40 * 60).round();
+    }
+
+    _gpsStatus = 'GPS aktif';
+    _locationReady = true;
+  });
+
+  // ==========================================================
+  // FOLLOW NAVIGATION
+  // ==========================================================
+  if (_followNavigation) {
+    _mapController.moveAndRotate(
+      LatLng(
+        position.latitude,
+        position.longitude,
+      ),
+      _mapController.camera.zoom,
+      -_heading,
+    );
+  }
+
+  // ==========================================================
+  // UPDATE POSISI MEMBER TOURING
+  // ==========================================================
+  if (_activeTouringId != null) {
+    _updateMyMemberLocation(position);
+  }
+
+  // ==========================================================
+  // AUTO REROUTE ROAD CAPTAIN
+  // ==========================================================
+  if (_isCaptain &&
+      _isTouring &&
+      _destinasi != null) {
+    if (_lastRoutePosition == null) {
       _getRoadRoute();
+    } else {
+      final distance = Geolocator.distanceBetween(
+        _lastRoutePosition!.latitude,
+        _lastRoutePosition!.longitude,
+        position.latitude,
+        position.longitude,
+      );
+
+      if (distance >= _rerouteDistanceMeters) {
+        _getRoadRoute();
+      }
     }
   }
 }
-  }
 
   // ==========================================================
 // CENTER LOCATION
@@ -2975,7 +3031,9 @@ void dispose() {
 
               MarkerLayer(
                 markers: [
-                  //// MARKER SAYA
+                  // ==========================================================
+// MARKER SAYA
+// ==========================================================
 if (_currentPosition != null)
   Marker(
     point: LatLng(
@@ -2984,7 +3042,7 @@ if (_currentPosition != null)
     ),
     width: 65,
     height: 75,
-    rotate: true,
+    rotate: false,
     child: Transform.rotate(
       angle: _heading * math.pi / 180,
       alignment: Alignment.center,
