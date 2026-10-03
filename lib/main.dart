@@ -275,6 +275,8 @@ class _MapScreenState extends State {
   double _smoothHeading = 0;
 bool _hasSmoothHeading = false;
 bool _followNavigation = false;
+  LatLng? _displayMarkerPosition;
+Timer? _markerAnimationTimer;
 
 static const double _touringMapZoom = 17;
   
@@ -742,7 +744,63 @@ bool _isTestPttTalking = false;
       }
     }
   }
+  
+void _animateMarkerTo(Position position) {
+  final target = LatLng(
+    position.latitude,
+    position.longitude,
+  );
 
+  _markerAnimationTimer?.cancel();
+
+  final start = _displayMarkerPosition ?? target;
+
+  if (_displayMarkerPosition == null) {
+    setState(() {
+      _displayMarkerPosition = target;
+    });
+    return;
+  }
+
+  const steps = 10;
+  int step = 0;
+
+  _markerAnimationTimer = Timer.periodic(
+    const Duration(milliseconds: 50),
+    (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      step++;
+
+      final t = step / steps;
+
+      final lat =
+          start.latitude +
+          (target.latitude - start.latitude) * t;
+
+      final lng =
+          start.longitude +
+          (target.longitude - start.longitude) * t;
+
+      setState(() {
+        _displayMarkerPosition = LatLng(lat, lng);
+      });
+
+      if (step >= steps) {
+        timer.cancel();
+
+        if (mounted) {
+          setState(() {
+            _displayMarkerPosition = target;
+          });
+        }
+      }
+    },
+  );
+}
   void _handlePosition(Position position) {
   if (!mounted) return;
 
@@ -804,20 +862,19 @@ bool _isTestPttTalking = false;
     _gpsStatus = 'GPS aktif';
     _locationReady = true;
   });
-
-  // ==========================================================
-  // FOLLOW NAVIGATION
-  // ==========================================================
-  if (_followNavigation) {
-    _mapController.moveAndRotate(
-      LatLng(
-        position.latitude,
-        position.longitude,
-      ),
-      _mapController.camera.zoom,
-      -_heading,
-    );
-  }
+_animateMarkerTo(position);
+// ==========================================================
+// FOLLOW NAVIGATION
+// ==========================================================
+if (_followNavigation) {
+  _mapController.move(
+    LatLng(
+      position.latitude,
+      position.longitude,
+    ),
+    _mapController.camera.zoom,
+  );
+}
 
   // ==========================================================
   // UPDATE POSISI MEMBER TOURING
@@ -888,10 +945,9 @@ void _followTouringPosition(Position position) {
     position.longitude,
   );
 
-  _mapController.moveAndRotate(
+  _mapController.move(
     point,
     _touringMapZoom,
-    -_heading,
   );
 }
 
@@ -3033,12 +3089,9 @@ void dispose() {
                   // ==========================================================
 // MARKER SAYA
 // ==========================================================
-if (_currentPosition != null)
+if (_displayMarkerPosition != null)
   Marker(
-    point: LatLng(
-      _currentPosition!.latitude,
-      _currentPosition!.longitude,
-    ),
+    point: _displayMarkerPosition!,
     width: 65,
     height: 75,
     rotate: false,
