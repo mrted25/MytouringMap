@@ -776,7 +776,7 @@ bool _isTestPttTalking = false;
   
 void _animateMarkerTo(Position position) {
   final target = LatLng(
-    position.latitude, ya 
+    position.latitude,
     position.longitude,
   );
 
