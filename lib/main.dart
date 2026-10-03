@@ -277,7 +277,7 @@ bool _hasSmoothHeading = false;
 bool _followNavigation = false;
   LatLng? _displayMarkerPosition;
 Timer? _markerAnimationTimer;
-
+double _displayMapRotation = 0;
 static const double _touringMapZoom = 17;
   
   // ==========================================================
@@ -744,10 +744,39 @@ bool _isTestPttTalking = false;
       }
     }
   }
+
+  void _smoothMapRotation(double targetHeading) {
+  if (!_followNavigation) return;
+
+  double target = -targetHeading;
+
+  double diff = target - _displayMapRotation;
+
+  // Ambil rotasi terpendek
+  while (diff > 180) {
+    diff -= 360;
+  }
+
+  while (diff < -180) {
+    diff += 360;
+  }
+
+  // Semakin kecil nilainya, semakin halus
+  _displayMapRotation += diff * 0.12;
+
+  if (_displayMapRotation > 180) {
+    _displayMapRotation -= 360;
+  } else if (_displayMapRotation < -180) {
+    _displayMapRotation += 360;
+  }
+
+  _mapController.rotate(_displayMapRotation);
+}
+  
   
 void _animateMarkerTo(Position position) {
   final target = LatLng(
-    position.latitude,
+    position.latitude, ya 
     position.longitude,
   );
 
@@ -755,6 +784,7 @@ void _animateMarkerTo(Position position) {
 
   final start = _displayMarkerPosition ?? target;
 
+  // Posisi pertama langsung tampil
   if (_displayMarkerPosition == null) {
     setState(() {
       _displayMarkerPosition = target;
@@ -762,11 +792,32 @@ void _animateMarkerTo(Position position) {
     return;
   }
 
-  const steps = 10;
+  // Kecepatan GPS dalam km/jam
+  final speedKmh =
+      position.speed.isFinite && position.speed > 0
+          ? position.speed * 3.6
+          : 0;
+
+  // Kendaraan lebih cepat -> animasi lebih singkat
+  final int durationMs;
+
+  if (speedKmh >= 20) {
+    durationMs = 180;
+  } else if (speedKmh >= 8) {
+    durationMs = 250;
+  } else {
+    durationMs = 400;
+  }
+
+  const intervalMs = 40;
+
+  final int steps =
+      (durationMs / intervalMs).round().clamp(4, 12).toInt();
+
   int step = 0;
 
   _markerAnimationTimer = Timer.periodic(
-    const Duration(milliseconds: 50),
+    const Duration(milliseconds: intervalMs),
     (timer) {
       if (!mounted) {
         timer.cancel();
@@ -775,15 +826,18 @@ void _animateMarkerTo(Position position) {
 
       step++;
 
-      final t = step / steps;
+      double t = step / steps;
+
+      // Gerakan lebih halus
+      final double eased = t * (2 - t);
 
       final lat =
           start.latitude +
-          (target.latitude - start.latitude) * t;
+          (target.latitude - start.latitude) * eased;
 
       final lng =
           start.longitude +
-          (target.longitude - start.longitude) * t;
+          (target.longitude - start.longitude) * eased;
 
       setState(() {
         _displayMarkerPosition = LatLng(lat, lng);
@@ -874,6 +928,8 @@ if (_followNavigation) {
     ),
     _mapController.camera.zoom,
   );
+
+  _smoothMapRotation(_heading);
 }
 
   // ==========================================================
