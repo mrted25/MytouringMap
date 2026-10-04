@@ -1123,38 +1123,231 @@ void _followTouringPosition(Position position) {
     final summary =
         segment['summary'] as Map;
 
+Future _getRoadRoute({
+  bool fromCurrentLocation = true,
+}) async {
+  if (_isLoadingRoute) return;
+  if (_destinasi == null) return;
+
+  LatLng? start;
+
+  if (fromCurrentLocation) {
+    if (_currentPosition == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lokasi GPS belum tersedia.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    start = LatLng(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+    );
+  } else {
+    start = _titikKumpul;
+  }
+
+  if (start == null) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Titik kumpul belum ditentukan.',
+          ),
+        ),
+      );
+    }
+    return;
+  }
+
+  if (mounted) {
+    setState(() {
+      _isLoadingRoute = true;
+    });
+  }
+
+  try {
+    // ========================================================
+    // HEIGIT VIA VERCEL
+    // ========================================================
+
+    final uri = Uri.parse(
+      'https://mytouringmap.vercel.app/api/route',
+    ).replace(
+      queryParameters: {
+        'start':
+            '${start.longitude},${start.latitude}',
+        'end':
+            '${_destinasi!.longitude},${_destinasi!.latitude}',
+        'profile': 'driving-car',
+      },
+    );
+
+    debugPrint(
+      'HEIGIT REQUEST: $uri',
+    );
+
+    final response = await http.get(uri);
+
+    debugPrint(
+      'HEIGIT RESPONSE: ${response.statusCode}',
+    );
+
+    debugPrint(
+      'HEIGIT BODY LENGTH: ${response.body.length}',
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'HeiGIT HTTP ${response.statusCode}: '
+        '${response.body}',
+      );
+    }
+
+    final data = jsonDecode(response.body);
+
+    // ========================================================
+    // FEATURE
+    // ========================================================
+
+    final features = data['features'] as List?;
+
+    if (features == null || features.isEmpty) {
+      throw Exception(
+        'HeiGIT tidak mengembalikan rute.',
+      );
+    }
+
+    final feature = features.first as Map;
+
+    // ========================================================
+    // GEOMETRY
+    // ========================================================
+
+    final geometry = feature['geometry'] as Map?;
+
+    if (geometry == null) {
+      throw Exception(
+        'Geometry HeiGIT tidak ditemukan.',
+      );
+    }
+
+    final coordinates =
+        geometry['coordinates'] as List?;
+
+    if (coordinates == null ||
+        coordinates.isEmpty) {
+      throw Exception(
+        'Geometry rute kosong.',
+      );
+    }
+
+    // ========================================================
+    // KONVERSI COORDINATE
+    //
+    // HeiGIT:
+    // [longitude, latitude]
+    //
+    // Flutter:
+    // LatLng(latitude, longitude)
+    // ========================================================
+
+    final points = <LatLng>[];
+
+    for (final item in coordinates) {
+      if (item is List &&
+          item.length >= 2 &&
+          item[0] is num &&
+          item[1] is num) {
+        points.add(
+          LatLng(
+            (item[1] as num).toDouble(),
+            (item[0] as num).toDouble(),
+          ),
+        );
+      }
+    }
+
+    if (points.length < 2) {
+      throw Exception(
+        'Jumlah titik rute tidak cukup: ${points.length}',
+      );
+    }
+
+    debugPrint(
+      'HEIGIT POINTS: ${points.length}',
+    );
+
+    // ========================================================
+    // DISTANCE & DURATION
+    // ========================================================
+
+    final properties =
+        feature['properties'] as Map?;
+
+    if (properties == null) {
+      throw Exception(
+        'Properties HeiGIT tidak ditemukan.',
+      );
+    }
+
+    final segments =
+        properties['segments'] as List?;
+
+    if (segments == null ||
+        segments.isEmpty) {
+      throw Exception(
+        'Segment HeiGIT tidak ditemukan.',
+      );
+    }
+
+    final segment = segments.first as Map;
+
+    final summary =
+        segment['summary'] as Map?;
+
+    if (summary == null) {
+      throw Exception(
+        'Summary HeiGIT tidak ditemukan.',
+      );
+    }
+
     final distanceMeters =
         (summary['distance'] as num).toDouble();
 
     final durationSeconds =
         (summary['duration'] as num).toDouble();
 
-    // ==========================================================
-    // BUAT ROUTE OPTION
-    // ==========================================================
+    final distanceKm =
+        distanceMeters / 1000;
 
-    final options = <RouteOption>[];
+    final durationMinutes =
+        durationSeconds / 60;
 
-    options.add(
+    debugPrint(
+      'HEIGIT DISTANCE: $distanceKm km',
+    );
+
+    debugPrint(
+      'HEIGIT DURATION: $durationMinutes min',
+    );
+
+    // ========================================================
+    // ROUTE OPTION
+    // ========================================================
+
+    final options = <RouteOption>[
       RouteOption(
         label: 'Rute tercepat',
         points: points,
-        distanceKm: distanceMeters / 1000,
-        durationMinutes: durationSeconds / 60,
+        distanceKm: distanceKm,
+        durationMinutes: durationMinutes,
       ),
-    );
-
-    if (options.isEmpty) {
-      throw Exception('Tidak ada pilihan rute.');
-    }
-
-    // ==========================================================
-    // SIMPAN POSISI TERAKHIR UNTUK REROUTE
-    // ==========================================================
-
-    if (fromCurrentLocation) {
-      _lastRoutePosition = _currentPosition;
-    }
+    ];
 
     int selectedIndex = _selectedRouteIndex;
 
@@ -1164,32 +1357,77 @@ void _followTouringPosition(Position position) {
 
     final selected = options[selectedIndex];
 
-    // ==========================================================
+    // ========================================================
+    // PENTING:
+    // TAMPILKAN RUTE KE MAP TERLEBIH DAHULU
+    // JANGAN MENUNGGU FIRESTORE
+    // ========================================================
+
+    if (mounted) {
+      setState(() {
+        _routeOptions = options;
+        _selectedRouteIndex = selectedIndex;
+        _routePoints = selected.points;
+        _routeDistanceKm =
+            selected.distanceKm;
+        _routeDurationMinutes =
+            selected.durationMinutes;
+        _isLoadingRoute = false;
+      });
+    }
+
+    // ========================================================
+    // SIMPAN POSISI UNTUK REROUTE
+    // ========================================================
+
+    if (fromCurrentLocation) {
+      _lastRoutePosition =
+          _currentPosition;
+    }
+
+    // ========================================================
     // SIMPAN ROUTE KE FIRESTORE
-    // ==========================================================
+    //
+    // Dilakukan SETELAH garis tampil.
+    // Jadi kalau Firestore bermasalah,
+    // garis tetap terlihat.
+    // ========================================================
 
     if (_isCaptain &&
         _activeTouringId != null) {
       try {
-        final routeGeoPoints = selected.points
-            .map<GeoPoint>(
-              (point) => GeoPoint(
-                point.latitude,
-                point.longitude,
-              ),
-            )
-            .toList();
+        final routeGeoPoints =
+            selected.points
+                .map<GeoPoint>(
+                  (point) => GeoPoint(
+                    point.latitude,
+                    point.longitude,
+                  ),
+                )
+                .toList();
 
-        await TouringService().updateTouringRoute(
-          touringId: _activeTouringId!,
-          routePoints: routeGeoPoints,
-          startLat: start.latitude,
-          startLng: start.longitude,
-          destinationLat: _destinasi!.latitude,
-          destinationLng: _destinasi!.longitude,
-          distanceKm: selected.distanceKm,
+        await TouringService()
+            .updateTouringRoute(
+          touringId:
+              _activeTouringId!,
+          routePoints:
+              routeGeoPoints,
+          startLat:
+              start.latitude,
+          startLng:
+              start.longitude,
+          destinationLat:
+              _destinasi!.latitude,
+          destinationLng:
+              _destinasi!.longitude,
+          distanceKm:
+              selected.distanceKm,
           durationMinutes:
               selected.durationMinutes,
+        );
+
+        debugPrint(
+          'HEIGIT ROUTE SAVED TO FIRESTORE',
         );
       } catch (e) {
         debugPrint(
@@ -1198,20 +1436,22 @@ void _followTouringPosition(Position position) {
       }
     }
 
-    // ==========================================================
-    // UPDATE UI
-    // ==========================================================
+    // ========================================================
+    // BERHASIL
+    // ========================================================
 
     if (mounted) {
-      setState(() {
-        _routeOptions = options;
-        _selectedRouteIndex = selectedIndex;
-        _routePoints = selected.points;
-        _routeDistanceKm = selected.distanceKm;
-        _routeDurationMinutes =
-            selected.durationMinutes;
-        _isLoadingRoute = false;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Rute HeiGIT berhasil: '
+            '${distanceKm.toStringAsFixed(1)} km • '
+            '${durationMinutes.round()} menit',
+          ),
+          duration:
+              const Duration(seconds: 3),
+        ),
+      );
     }
   } catch (e) {
     debugPrint(
@@ -1222,6 +1462,16 @@ void _followTouringPosition(Position position) {
       setState(() {
         _isLoadingRoute = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'HeiGIT gagal:\n$e',
+          ),
+          duration:
+              const Duration(seconds: 6),
+        ),
+      );
     }
   }
 }
