@@ -1012,155 +1012,219 @@ void _followTouringPosition(Position position) {
   // ==========================================================
 
   Future _getRoadRoute({
-    bool fromCurrentLocation = true,
-  }) async {
-    if (_isLoadingRoute) return;
-    if (_destinasi == null) return;
+  bool fromCurrentLocation = true,
+}) async {
+  if (_isLoadingRoute) return;
+  if (_destinasi == null) return;
 
-    LatLng? start;
+  LatLng? start;
 
-    if (fromCurrentLocation) {
-      if (_currentPosition == null) return;
+  if (fromCurrentLocation) {
+    if (_currentPosition == null) return;
 
-      start = LatLng(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
+    start = LatLng(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+    );
+  } else {
+    start = _titikKumpul;
+  }
+
+  if (start == null) return;
+
+  if (mounted) {
+    setState(() {
+      _isLoadingRoute = true;
+    });
+  }
+
+  try {
+    // ==========================================================
+    // HEIGIT ROUTING VIA VERCEL
+    // ==========================================================
+
+    final uri = Uri.parse(
+      'https://mytouringmap.vercel.app/api/route',
+    ).replace(
+      queryParameters: {
+        // HeiGIT memakai urutan LONGITUDE,LATITUDE
+        'start':
+            '${start.longitude},${start.latitude}',
+        'end':
+            '${_destinasi!.longitude},${_destinasi!.latitude}',
+        'profile': 'driving-car',
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'HeiGIT HTTP ${response.statusCode}: ${response.body}',
       );
-    } else {
-      start = _titikKumpul;
     }
 
-    if (start == null) return;
+    final data = jsonDecode(response.body);
+
+    // ==========================================================
+    // AMBIL FEATURE
+    // ==========================================================
+
+    final features = data['features'] as List?;
+
+    if (features == null || features.isEmpty) {
+      throw Exception('Rute tidak ditemukan');
+    }
+
+    final feature = features[0] as Map;
+
+    // ==========================================================
+    // AMBIL GEOMETRY
+    // ==========================================================
+
+    final geometry = feature['geometry'] as Map;
+
+    final coordinates =
+        geometry['coordinates'] as List;
+
+    if (coordinates.isEmpty) {
+      throw Exception('Geometry rute kosong');
+    }
+
+    // HeiGIT:
+    // [longitude, latitude]
+    //
+    // Flutter LatLng:
+    // LatLng(latitude, longitude)
+
+    final points = coordinates.map((item) {
+      return LatLng(
+        (item[1] as num).toDouble(),
+        (item[0] as num).toDouble(),
+      );
+    }).toList();
+
+    // ==========================================================
+    // AMBIL JARAK & DURASI
+    // ==========================================================
+
+    final properties =
+        feature['properties'] as Map;
+
+    final segments =
+        properties['segments'] as List?;
+
+    if (segments == null || segments.isEmpty) {
+      throw Exception('Data segment rute tidak ditemukan');
+    }
+
+    final segment = segments[0] as Map;
+
+    final summary =
+        segment['summary'] as Map;
+
+    final distanceMeters =
+        (summary['distance'] as num).toDouble();
+
+    final durationSeconds =
+        (summary['duration'] as num).toDouble();
+
+    // ==========================================================
+    // BUAT ROUTE OPTION
+    // ==========================================================
+
+    final options = <RouteOption>[];
+
+    options.add(
+      RouteOption(
+        label: 'Rute tercepat',
+        points: points,
+        distanceKm: distanceMeters / 1000,
+        durationMinutes: durationSeconds / 60,
+      ),
+    );
+
+    if (options.isEmpty) {
+      throw Exception('Tidak ada pilihan rute.');
+    }
+
+    // ==========================================================
+    // SIMPAN POSISI TERAKHIR UNTUK REROUTE
+    // ==========================================================
+
+    if (fromCurrentLocation) {
+      _lastRoutePosition = _currentPosition;
+    }
+
+    int selectedIndex = _selectedRouteIndex;
+
+    if (selectedIndex >= options.length) {
+      selectedIndex = 0;
+    }
+
+    final selected = options[selectedIndex];
+
+    // ==========================================================
+    // SIMPAN ROUTE KE FIRESTORE
+    // ==========================================================
+
+    if (_isCaptain &&
+        _activeTouringId != null) {
+      try {
+        final routeGeoPoints = selected.points
+            .map<GeoPoint>(
+              (point) => GeoPoint(
+                point.latitude,
+                point.longitude,
+              ),
+            )
+            .toList();
+
+        await TouringService().updateTouringRoute(
+          touringId: _activeTouringId!,
+          routePoints: routeGeoPoints,
+          startLat: start.latitude,
+          startLng: start.longitude,
+          destinationLat: _destinasi!.latitude,
+          destinationLng: _destinasi!.longitude,
+          distanceKm: selected.distanceKm,
+          durationMinutes:
+              selected.durationMinutes,
+        );
+      } catch (e) {
+        debugPrint(
+          'Save touring route error: $e',
+        );
+      }
+    }
+
+    // ==========================================================
+    // UPDATE UI
+    // ==========================================================
 
     if (mounted) {
       setState(() {
-        _isLoadingRoute = true;
+        _routeOptions = options;
+        _selectedRouteIndex = selectedIndex;
+        _routePoints = selected.points;
+        _routeDistanceKm = selected.distanceKm;
+        _routeDurationMinutes =
+            selected.durationMinutes;
+        _isLoadingRoute = false;
       });
     }
-
-    try {
-      final uri = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${start.longitude},${start.latitude};'
-        '${_destinasi!.longitude},${_destinasi!.latitude}',
-      ).replace(
-        queryParameters: {
-          'overview': 'full',
-          'geometries': 'geojson',
-          'alternatives': 'true',
-        },
-      );
-
-      final response = await http.get(uri);
-
-      if (response.statusCode != 200) {
-        throw Exception(
-          'OSRM HTTP ${response.statusCode}: ${response.body}',
-        );
-      }
-
-      final data = jsonDecode(response.body);
-      final routes = data['routes'] as List?;
-
-      if (routes == null || routes.isEmpty) {
-        throw Exception('Rute tidak ditemukan');
-      }
-
-      final options = [];
-
-      for (int i = 0; i < routes.length && i < 3; i++) {
-        final route = routes[i] as Map;
-        final geometry = route['geometry'] as Map;
-        final coordinates = geometry['coordinates'] as List;
-
-        final points = coordinates.map((item) {
-          return LatLng(
-            (item[1] as num).toDouble(),
-            (item[0] as num).toDouble(),
-          );
-        }).toList();
-
-        final distanceMeters =
-            (route['distance'] as num).toDouble();
-
-        final durationSeconds =
-            (route['duration'] as num).toDouble();
-
-        final String label =
-            i == 0 ? 'Rute tercepat' : 'Alternatif $i';
-
-        options.add(
-          RouteOption(
-            label: label,
-            points: points,
-            distanceKm: distanceMeters / 1000,
-            durationMinutes: durationSeconds / 60,
-          ),
-        );
-      }
-
-      if (options.isEmpty) {
-        throw Exception('Tidak ada pilihan rute.');
-      }
-
-      if (fromCurrentLocation) {
-        _lastRoutePosition = _currentPosition;
-      }
-
-      int selectedIndex = _selectedRouteIndex;
-
-      if (selectedIndex >= options.length) {
-        selectedIndex = 0;
-      }
-
-      final selected = options[selectedIndex];
-
-      if (_isCaptain && _activeTouringId != null) {
-  try {
-    final routeGeoPoints = selected.points
-        .map<GeoPoint>(
-          (point) => GeoPoint(
-            point.latitude,
-            point.longitude,
-          ),
-        )
-        .toList();
-
-    await TouringService().updateTouringRoute(
-      touringId: _activeTouringId!,
-      routePoints: routeGeoPoints,
-      startLat: start.latitude,
-      startLng: start.longitude,
-      destinationLat: _destinasi!.latitude,
-      destinationLng: _destinasi!.longitude,
-      distanceKm: selected.distanceKm,
-      durationMinutes: selected.durationMinutes,
-    );
   } catch (e) {
-    debugPrint('Save touring route error: $e');
-  }
-}
+    debugPrint(
+      'HeiGIT Route error: $e',
+    );
 
-      if (mounted) {
-        setState(() {
-          _routeOptions = options;
-          _selectedRouteIndex = selectedIndex;
-          _routePoints = selected.points;
-          _routeDistanceKm = selected.distanceKm;
-          _routeDurationMinutes = selected.durationMinutes;
-          _isLoadingRoute = false;
-        });
-      }
-        } catch (e) {
-      debugPrint('Route error: $e');
-
-      if (mounted) {
-        setState(() {
-          _isLoadingRoute = false;
-        });
-      }
+    if (mounted) {
+      setState(() {
+        _isLoadingRoute = false;
+      });
     }
   }
+}
 
   // ==========================================================
   // START TOURING
