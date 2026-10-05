@@ -855,7 +855,7 @@ void _animateMarkerTo(Position position) {
     },
   );
 }
-  void _handlePosition(Position position) {
+void _handlePosition(Position position) {
   if (!mounted) return;
 
   // ==========================================================
@@ -877,7 +877,7 @@ void _animateMarkerTo(Position position) {
         diff += 360;
       }
 
-      // Smoothing lebih halus
+      // Smoothing heading
       _smoothHeading += diff * 0.20;
 
       // Normalisasi 0 - 360
@@ -892,35 +892,7 @@ void _animateMarkerTo(Position position) {
   }
 
   // ==========================================================
-  // UPDATE POSISI GPS
-  // ==========================================================
-  setState(() {
-    _currentPosition = position;
-  });
-
-  // ==========================================================
-  // ANIMASI MARKER
-  // ==========================================================
-  _animateMarkerTo(position);
-
-  // ==========================================================
-  // FOLLOW NAVIGATION
-  // ==========================================================
-  if (_followNavigation) {
-    _mapController.move(
-      LatLng(
-        position.latitude,
-        position.longitude,
-      ),
-      _mapController.camera.zoom,
-    );
-
-    _smoothMapRotation(_heading);
-  }
-}
-
-  // ==========================================================
-  // UPDATE POSISI
+  // UPDATE POSISI + JARAK + ETA + STATUS GPS
   // ==========================================================
   setState(() {
     _currentPosition = position;
@@ -944,21 +916,26 @@ void _animateMarkerTo(Position position) {
     _gpsStatus = 'GPS aktif';
     _locationReady = true;
   });
-_animateMarkerTo(position);
-// ==========================================================
-// FOLLOW NAVIGATION
-// ==========================================================
-if (_followNavigation) {
-  _mapController.move(
-    LatLng(
-      position.latitude,
-      position.longitude,
-    ),
-    _mapController.camera.zoom,
-  );
 
-  _smoothMapRotation(_heading);
-}
+  // ==========================================================
+  // ANIMASI MARKER
+  // ==========================================================
+  _animateMarkerTo(position);
+
+  // ==========================================================
+  // FOLLOW NAVIGATION
+  // ==========================================================
+  if (_followNavigation) {
+    _mapController.move(
+      LatLng(
+        position.latitude,
+        position.longitude,
+      ),
+      _mapController.camera.zoom,
+    );
+
+    _smoothMapRotation(_heading);
+  }
 
   // ==========================================================
   // UPDATE POSISI MEMBER TOURING
