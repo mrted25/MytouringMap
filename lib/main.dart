@@ -877,8 +877,8 @@ void _animateMarkerTo(Position position) {
         diff += 360;
       }
 
-      // Smoothing heading
-      _smoothHeading += diff * 0.25;
+      // Smoothing lebih halus
+      _smoothHeading += diff * 0.20;
 
       // Normalisasi 0 - 360
       if (_smoothHeading < 0) {
@@ -890,6 +890,34 @@ void _animateMarkerTo(Position position) {
 
     _heading = _smoothHeading;
   }
+
+  // ==========================================================
+  // UPDATE POSISI GPS
+  // ==========================================================
+  setState(() {
+    _currentPosition = position;
+  });
+
+  // ==========================================================
+  // ANIMASI MARKER
+  // ==========================================================
+  _animateMarkerTo(position);
+
+  // ==========================================================
+  // FOLLOW NAVIGATION
+  // ==========================================================
+  if (_followNavigation) {
+    _mapController.move(
+      LatLng(
+        position.latitude,
+        position.longitude,
+      ),
+      _mapController.camera.zoom,
+    );
+
+    _smoothMapRotation(_heading);
+  }
+}
 
   // ==========================================================
   // UPDATE POSISI
