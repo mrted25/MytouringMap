@@ -1182,27 +1182,14 @@ void _followTouringPosition(Position position) {
       );
     }
 
-    final segments =
-        properties['segments'] as List?;
-
-    if (segments == null ||
-        segments.isEmpty) {
-      throw Exception(
-        'Segment HeiGIT tidak ditemukan.',
-      );
-    }
-
-    final segment = segments.first as Map;
-
     final summary =
-        segment['summary'] as Map?;
+    properties['summary'] as Map?;
 
-    if (summary == null) {
-      throw Exception(
-        'Summary HeiGIT tidak ditemukan.',
-      );
-    }
-
+if (summary == null) {
+  throw Exception(
+    'Summary HeiGIT tidak ditemukan.',
+  );
+}
     final distanceMeters =
         (summary['distance'] as num).toDouble();
 
