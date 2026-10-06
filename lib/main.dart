@@ -982,16 +982,13 @@ void _centerMyLocation() {
   }
 
   if (_followNavigation) {
-    _followTouringPosition(_currentPosition!);
-  } else {
-    _mapController.move(
-      LatLng(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      ),
-      _mapController.camera.zoom,
-    );
-  }
+  _mapController.move(
+    LatLng(
+      position.latitude,
+      position.longitude,
+    ),
+    _mapController.camera.zoom,
+  );
 }
 
 // ==========================================================
