@@ -923,19 +923,17 @@ void _handlePosition(Position position) {
   _animateMarkerTo(position);
 
   // ==========================================================
-  // FOLLOW NAVIGATION
-  // ==========================================================
-  if (_followNavigation) {
-    _mapController.move(
-      LatLng(
-        position.latitude,
-        position.longitude,
-      ),
-      _mapController.camera.zoom,
-    );
-
-    _smoothMapRotation(_heading);
-  }
+// FOLLOW NAVIGATION
+// ==========================================================
+if (_followNavigation) {
+  _mapController.move(
+    LatLng(
+      position.latitude,
+      position.longitude,
+    ),
+    _mapController.camera.zoom,
+  );
+}
 
   // ==========================================================
   // UPDATE POSISI MEMBER TOURING
