@@ -2339,9 +2339,16 @@ await _joinAgoraTouringChannel(
         );
       }
     } catch (e) {
-      debugPrint('Join touring error: $e');
-    }
+  debugPrint('Create touring error: $e');
+
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Gagal membuat touring: $e'),
+      ),
+    );
   }
+}
 
   // ==========================================================
   // SAVE MEMBER
