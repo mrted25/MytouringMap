@@ -2037,60 +2037,98 @@ if (summary == null) {
   }
 
   Future _createTouring(String name) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('Firebase user belum tersedia.');
-      }
+  try {
+    final user = FirebaseAuth.instance.currentUser;
 
-      final service = TouringService();
-
-      final code = await service.createTouring(
-        name: name,
-        captainId: user.uid,
-        captainName: 'Road Captain',
-        startLat: _titikKumpul?.latitude ?? _currentPosition?.latitude ?? 0,
-        startLng: _titikKumpul?.longitude ?? _currentPosition?.longitude ?? 0,
-        destinationLat: _destinasi?.latitude ?? 0,
-        destinationLng: _destinasi?.longitude ?? 0,
+    if (user == null) {
+      throw Exception(
+        'Firebase user belum tersedia.',
       );
+    }
 
-      final query = await _firestore
-          .collection('tourings')
-          .where('code', isEqualTo: code)
-          .limit(1)
-          .get();
+    final service = TouringService();
 
-      if (query.docs.isEmpty) {
-        throw Exception('Dokumen touring tidak ditemukan.');
-      }
+    final code = await service.createTouring(
+      name: name,
+      captainId: user.uid,
+      captainName: 'Road Captain',
+      startLat:
+          _titikKumpul?.latitude ??
+          _currentPosition?.latitude ??
+          0,
+      startLng:
+          _titikKumpul?.longitude ??
+          _currentPosition?.longitude ??
+          0,
+      destinationLat:
+          _destinasi?.latitude ??
+          0,
+      destinationLng:
+          _destinasi?.longitude ??
+          0,
+    );
 
-      final touringDoc = query.docs.first;
+    final query = await _firestore
+        .collection('tourings')
+        .where(
+          'code',
+          isEqualTo: code,
+        )
+        .limit(1)
+        .get();
 
-      setState(() {
-        _activeTouringId = touringDoc.id;
-        _activeTouringCode = code;
-        _activeTouringName = name;
-        _isCaptain = true;
-        _myName = 'Road Captain';
-        _myVehicleType = _isMotorMode ? 'Motor' : 'SUV';
-      });
+    if (query.docs.isEmpty) {
+      throw Exception(
+        'Dokumen touring tidak ditemukan.',
+      );
+    }
 
-      await WakelockPlus.enable();
+    final touringDoc = query.docs.first;
 
-      await _saveTouringSession();
-await _saveMyMember(status: 'Joined');
-_subscribeToTouringMembers(touringDoc.id);
+    setState(() {
+      _activeTouringId = touringDoc.id;
+      _activeTouringCode = code;
+      _activeTouringName = name;
+      _isCaptain = true;
+      _myName = 'Road Captain';
+      _myVehicleType =
+          _isMotorMode ? 'Motor' : 'SUV';
+    });
 
-await _joinAgoraTouringChannel(
-  touringDoc.id,
-);
+    // SIMPAN SESI LOKAL
+    await _saveTouringSession();
 
-      await _showTouringCreatedDialog(name, code);
-    } catch (e) {
-      debugPrint('Create touring error: $e');
+    // SIMPAN MEMBER
+    await _saveMyMember(
+      status: 'Joined',
+    );
+
+    // SUBSCRIBE MEMBER
+    _subscribeToTouringMembers(
+      touringDoc.id,
+    );
+
+    // TAMPILKAN KODE TOURING
+    await _showTouringCreatedDialog(
+      name,
+      code,
+    );
+  } catch (e) {
+    debugPrint(
+      'Create touring error: $e',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal membuat touring: $e',
+          ),
+        ),
+      );
     }
   }
+}
 
   // ==========================================================
   // TOURING CODE DIALOG
