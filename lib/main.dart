@@ -1433,84 +1433,99 @@ if (summary == null) {
   // ==========================================================
 
   Future _finishTouring() async {
-    final touringId = _activeTouringId;
-    if (touringId == null) return;
+  final touringId = _activeTouringId;
+  if (touringId == null) return;
 
-    final confirmed = await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Selesaikan Touring?'),
-          content: const Text(
-            'Touring akan ditandai sebagai selesai. '
-            'Setelah selesai, sesi ini tidak akan ditawarkan lagi '
-            'saat aplikasi dibuka.',
+  final confirmed = await showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Selesaikan Touring?'),
+        content: const Text(
+          'Touring akan ditandai sebagai selesai. '
+          'Setelah selesai, sesi ini tidak akan ditawarkan lagi '
+          'saat aplikasi dibuka.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pop(context, true),
-              icon: const Icon(Icons.flag),
-              label: const Text('Selesaikan'),
-            ),
-          ],
-        );
-      },
-    );
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.flag),
+            label: const Text('Selesaikan'),
+          ),
+        ],
+      );
+    },
+  );
 
-    if (confirmed != true) return;
+  if (confirmed != true) return;
 
-try {
-  await WakelockPlus.disable();
-
-  setState(() {
-    _isTouring = false;
-  });
-
-      await _saveMyMember(status: 'Finished');
-
-      if (_isCaptain) {
-        await _firestore.collection('tourings').doc(touringId).set(
-          {
-            'status': 'finished',
-            'finishedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }
-
-      if (_engine != null) {
   try {
-    await _engine!.leaveChannel();
-  } catch (_) {}
-}
+    // Matikan wakelock
+    await WakelockPlus.disable();
 
-_agoraChannelName = null;
-
-      await _clearTouringSession();
-      await _membersSubscription?.cancel();
-
-      if (mounted) {
-        setState(() {
-          _activeTouringId = null;
-          _activeTouringCode = null;
-          _activeTouringName = null;
-          _isCaptain = false;
-          _isTouring = false;
-          _groupMembers.clear();
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Touring telah diselesaikan.')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Finish touring error: $e');
+    // Tandai touring berhenti
+    if (mounted) {
+      setState(() {
+        _isTouring = false;
+      });
     }
+
+    // Simpan status member
+    await _saveMyMember(status: 'Finished');
+
+    // Kalau Road Captain, tandai touring selesai di Firestore
+    if (_isCaptain) {
+      await _firestore
+          .collection('tourings')
+          .doc(touringId)
+          .set(
+        {
+          'status': 'finished',
+          'finishedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    // Keluar dari channel Agora
+    if (_engine != null) {
+      try {
+        await _engine!.leaveChannel();
+      } catch (_) {}
+    }
+
+    _agoraChannelName = null;
+
+    // Hapus session lokal
+    await _clearTouringSession();
+
+    // Hentikan listener member
+    await _membersSubscription?.cancel();
+
+    if (mounted) {
+      setState(() {
+        _activeTouringId = null;
+        _activeTouringCode = null;
+        _activeTouringName = null;
+        _isCaptain = false;
+        _isTouring = false;
+        _groupMembers.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Touring telah diselesaikan.'),
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint('Finish touring error: $e');
   }
+}
 
   // ==========================================================
   // LEAVE TOURING - MEMBER
