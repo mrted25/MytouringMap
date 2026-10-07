@@ -965,7 +965,7 @@ if (_followNavigation) {
   }
 }
 
-  // ==========================================================
+// ==========================================================
 // CENTER LOCATION
 // ==========================================================
 
@@ -979,12 +979,13 @@ void _centerMyLocation() {
     return;
   }
 
-  if (_followNavigation) {
+  final point = LatLng(
+    _currentPosition!.latitude,
+    _currentPosition!.longitude,
+  );
+
   _mapController.move(
-    LatLng(
-      position.latitude,
-      position.longitude,
-    ),
+    point,
     _mapController.camera.zoom,
   );
 }
