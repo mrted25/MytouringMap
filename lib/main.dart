@@ -273,6 +273,7 @@ class _MapScreenState extends State {
   bool _locationReady = false;
 
   double _heading = 0;
+  double _compassHeading = 0;
   double _smoothHeading = 0;
 bool _hasSmoothHeading = false;
 bool _followNavigation = false;
@@ -364,12 +365,12 @@ StreamSubscription<CompassEvent>? _compassSubscription;
 
     // 3. TAMBAHAN: Dengarkan arah kompas HP agar marker berputar otomatis
     _compassSubscription = FlutterCompass.events?.listen((event) {
-      if (mounted && event.heading != null) {
-        setState(() {
-          _heading = event.heading!;
-        });
-      }
+  if (mounted && event.heading != null) {
+    setState(() {
+      _compassHeading = event.heading!;
     });
+  }
+});
 
     // 4. Callback pasca frame yang sudah ada
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -801,7 +802,6 @@ void _animateMarkerTo(Position position) {
 
   final start = _displayMarkerPosition ?? target;
 
-  // Posisi pertama langsung tampil
   if (_displayMarkerPosition == null) {
     setState(() {
       _displayMarkerPosition = target;
@@ -809,27 +809,28 @@ void _animateMarkerTo(Position position) {
     return;
   }
 
-  // Kecepatan GPS dalam km/jam
-  final speedKmh =
-      position.speed.isFinite && position.speed > 0
-          ? position.speed * 3.6
-          : 0;
+  // Hitung jarak perpindahan GPS
+  final distanceMeters = Geolocator.distanceBetween(
+    start.latitude,
+    start.longitude,
+    target.latitude,
+    target.longitude,
+  );
 
-  // Kendaraan lebih cepat -> animasi lebih singkat
-  final int durationMs;
-
-  if (speedKmh >= 20) {
-    durationMs = 180;
-  } else if (speedKmh >= 8) {
-    durationMs = 250;
-  } else {
-    durationMs = 400;
+  // Kalau GPS tiba-tiba lompat terlalu jauh,
+  // jangan animasikan lompatan tersebut.
+  if (distanceMeters > 50) {
+    setState(() {
+      _displayMarkerPosition = target;
+    });
+    return;
   }
 
+  // Durasi dibuat lebih konsisten
+  const durationMs = 500;
   const intervalMs = 40;
 
-  final int steps =
-      (durationMs / intervalMs).round().clamp(4, 12).toInt();
+  const steps = durationMs ~/ intervalMs;
 
   int step = 0;
 
@@ -845,8 +846,15 @@ void _animateMarkerTo(Position position) {
 
       double t = step / steps;
 
-      // Gerakan lebih halus
-      final double eased = t * (2 - t);
+      if (t > 1) {
+        t = 1;
+      }
+
+      // Ease-in-out
+      final double eased =
+          t < 0.5
+              ? 2 * t * t
+              : 1 - math.pow(-2 * t + 2, 2) / 2;
 
       final lat =
           start.latitude +
