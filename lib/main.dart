@@ -1086,7 +1086,14 @@ void _followTouringPosition(Position position) {
     // ========================================================
     // HEIGIT VIA VERCEL
     // ========================================================
+    
+debugPrint(
+  'ROUTE START LAT=${start.latitude}, LNG=${start.longitude}',
+);
 
+debugPrint(
+  'ROUTE DEST LAT=${_destinasi!.latitude}, LNG=${_destinasi!.longitude}',
+);
     final uri = Uri.parse(
       'https://mytouringmap.vercel.app/api/route',
     ).replace(
@@ -1401,7 +1408,9 @@ if (summary == null) {
   _touringStartTime = DateTime.now();
   _followNavigation = true;
 });
-
+    
+await WakelockPlus.enable();
+    
     if (_isCaptain && _activeTouringId != null) {
       try {
         await _firestore
