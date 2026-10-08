@@ -20,6 +20,7 @@ dependencies:
   firebase_auth: ^5.7.0
   shared_preferences: ^2.5.3
   wakelock_plus: ^1.4.0
+  flutter_compass: ^0.8.0
 
 dev_dependencies:
   flutter_test:
