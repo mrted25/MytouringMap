@@ -23,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'services/touring_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 
 const String agoraAppId = '398d30b96cae43aeac064c7a0fa9add8';
 
@@ -348,13 +349,29 @@ bool _isTestPttTalking = false;
   // ==========================================================
   // INIT
   // ==========================================================
+  
+StreamSubscription<CompassEvent>? _compassSubscription;
 
   @override
   void initState() {
     super.initState();
 
+    // 1. Tetap nyalakan layar agar tidak mati saat touring
+    WakelockPlus.enable();
+
+    // 2. Inisialisasi GPS yang sudah ada
     _initializeGPS();
 
+    // 3. TAMBAHAN: Dengarkan arah kompas HP agar marker berputar otomatis
+    _compassSubscription = FlutterCompass.events?.listen((event) {
+      if (mounted && event.heading != null) {
+        setState(() {
+          _heading = event.heading!;
+        });
+      }
+    });
+
+    // 4. Callback pasca frame yang sudah ada
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!kIsWeb) {
         await _initAgoraPTT();
@@ -3243,6 +3260,7 @@ if (mounted) {
   @override
 void dispose() {
   _positionStream?.cancel();
+  _compassSubscription?.cancel();
   _membersSubscription?.cancel();
   _touringSubscription?.cancel();
   _engine?.leaveChannel();
