@@ -273,7 +273,6 @@ class _MapScreenState extends State {
   bool _locationReady = false;
 
   double _heading = 0;
-  double _compassHeading = 0;
   double _smoothHeading = 0;
 bool _hasSmoothHeading = false;
 bool _followNavigation = false;
@@ -367,7 +366,7 @@ StreamSubscription<CompassEvent>? _compassSubscription;
     _compassSubscription = FlutterCompass.events?.listen((event) {
   if (mounted && event.heading != null) {
     setState(() {
-      _compassHeading = event.heading!;
+      _heading = event.heading!;
     });
   }
 });
