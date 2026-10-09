@@ -825,9 +825,9 @@ void _animateMarkerTo(Position position) {
     return;
   }
 
-  // Durasi dibuat lebih konsisten
-  const durationMs = 500;
-  const intervalMs = 40;
+  // Marker lebih responsif mengikuti GPS
+const durationMs = 150;
+const intervalMs = 30;
 
   const steps = durationMs ~/ intervalMs;
 
@@ -949,13 +949,15 @@ void _handlePosition(Position position) {
   // ==========================================================
 // FOLLOW NAVIGATION
 // ==========================================================
+// FOLLOW NAVIGATION + AUTO ROTASI PETA
 if (_followNavigation) {
-  _mapController.move(
+  _mapController.moveAndRotate(
     LatLng(
       position.latitude,
       position.longitude,
     ),
     _mapController.camera.zoom,
+    -_heading,
   );
 }
 
