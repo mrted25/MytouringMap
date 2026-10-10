@@ -2083,53 +2083,36 @@ await WakelockPlus.enable();
 
     final service = TouringService();
 
-    final code = await service.createTouring(
-      name: name,
-      captainId: user.uid,
-      captainName: 'Road Captain',
-      startLat:
-          _titikKumpul?.latitude ??
-          _currentPosition?.latitude ??
-          0,
-      startLng:
-          _titikKumpul?.longitude ??
-          _currentPosition?.longitude ??
-          0,
-      destinationLat:
-          _destinasi?.latitude ??
-          0,
-      destinationLng:
-          _destinasi?.longitude ??
-          0,
-    );
+    final result = await service.createTouring(
+  name: name,
+  captainId: user.uid,
+  captainName: 'Road Captain',
+  startLat:
+      _titikKumpul?.latitude ??
+      _currentPosition?.latitude ??
+      0,
+  startLng:
+      _titikKumpul?.longitude ??
+      _currentPosition?.longitude ??
+      0,
+  destinationLat:
+      _destinasi?.latitude ?? 0,
+  destinationLng:
+      _destinasi?.longitude ?? 0,
+);
 
-    final query = await _firestore
-        .collection('tourings')
-        .where(
-          'code',
-          isEqualTo: code,
-        )
-        .limit(1)
-        .get();
-
-    if (query.docs.isEmpty) {
-      throw Exception(
-        'Dokumen touring tidak ditemukan.',
-      );
-    }
-
-    final touringDoc = query.docs.first;
+final touringId = result['touringId']!;
+final code = result['code']!;
 
     setState(() {
-      _activeTouringId = touringDoc.id;
-      _activeTouringCode = code;
-      _activeTouringName = name;
-      _isCaptain = true;
-      _myName = 'Road Captain';
-      _myVehicleType =
-          _isMotorMode ? 'Motor' : 'SUV';
-    });
-
+  _activeTouringId = touringId;
+  _activeTouringCode = code;
+  _activeTouringName = name;
+  _isCaptain = true;
+  _myName = 'Road Captain';
+  _myVehicleType = _isMotorMode ? 'Motor' : 'SUV';
+});
+    
     // SIMPAN SESI LOKAL
     await _saveTouringSession();
 
@@ -2139,9 +2122,7 @@ await WakelockPlus.enable();
     );
 
     // SUBSCRIBE MEMBER
-    _subscribeToTouringMembers(
-      touringDoc.id,
-    );
+    _subscribeToTouringMembers(touringId);
 
     // TAMPILKAN KODE TOURING
     await _showTouringCreatedDialog(
