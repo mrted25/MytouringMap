@@ -252,11 +252,84 @@ class _MapScreenState extends State {
   int _selectedRouteIndex = 0;
 
   Position? _lastRoutePosition;
+  
+  // Deteksi penyimpangan dari rute aktif
+int _offRouteCount = 0;
+DateTime? _lastRerouteTime;
+
+// Ambang awal untuk pengujian
+static const double _offRouteThresholdMeters = 45.0;
+static const double _maxGpsAccuracyMeters = 25.0;
+static const int _offRouteRequiredReadings = 4;
+static const int _rerouteCooldownSeconds = 20;
 
   final double _rerouteDistanceMeters = 50;
 
   bool _mapPickingMode = false;
   String _pickingTarget = '';
+
+  double _distanceToRouteMeters(
+  LatLng position,
+  List<LatLng> route,
+) {
+  if (route.isEmpty) {
+    return double.infinity;
+  }
+
+  if (route.length == 1) {
+    return Geolocator.distanceBetween(
+      position.latitude,
+      position.longitude,
+      route.first.latitude,
+      route.first.longitude,
+    );
+  }
+
+  final latScale = 111320.0;
+  final lngScale =
+      111320.0 *
+      math.cos(position.latitude * math.pi / 180);
+
+  double minDistanceSquared = double.infinity;
+
+  for (int i = 0; i < route.length - 1; i++) {
+    final a = route[i];
+    final b = route[i + 1];
+
+    final ax =
+        (a.longitude - position.longitude) * lngScale;
+    final ay =
+        (a.latitude - position.latitude) * latScale;
+
+    final bx =
+        (b.longitude - position.longitude) * lngScale;
+    final by =
+        (b.latitude - position.latitude) * latScale;
+
+    final dx = bx - ax;
+    final dy = by - ay;
+    final lengthSquared = dx * dx + dy * dy;
+
+    double t = 0;
+
+    if (lengthSquared > 0) {
+      t = (-(ax * dx) - (ay * dy)) / lengthSquared;
+      t = t.clamp(0.0, 1.0);
+    }
+
+    final nearestX = ax + t * dx;
+    final nearestY = ay + t * dy;
+
+    final distanceSquared =
+        nearestX * nearestX + nearestY * nearestY;
+
+    if (distanceSquared < minDistanceSquared) {
+      minDistanceSquared = distanceSquared;
+    }
+  }
+
+  return math.sqrt(minDistanceSquared);
+}
 
   // ==========================================================
   // GPS
@@ -968,24 +1041,48 @@ if (_followNavigation) {
     _updateMyMemberLocation(position);
   }
 
-  // ==========================================================
-  // AUTO REROUTE ROAD CAPTAIN
-  // ==========================================================
-  if (_isCaptain &&
-      _isTouring &&
-      _destinasi != null) {
-    if (_lastRoutePosition == null) {
-      _getRoadRoute();
+// REROUTE OTOMATIS BERDASARKAN JARAK KE GARIS RUTE
+if (_isCaptain && _isTouring && _destinasi != null) {
+  // Jika rute belum tersedia, hitung rute pertama.
+  if (_routePoints.isEmpty) {
+    _offRouteCount = 0;
+
+    if (!_isLoadingRoute) {
+      _getRoadRoute(fromCurrentLocation: true);
+    }
+  } else if (!_isLoadingRoute) {
+    // GPS yang tidak akurat tidak boleh memicu reroute.
+    if (position.accuracy > _maxGpsAccuracyMeters) {
+      _offRouteCount = 0;
     } else {
-      final distance = Geolocator.distanceBetween(
-        _lastRoutePosition!.latitude,
-        _lastRoutePosition!.longitude,
+      final currentPoint = LatLng(
         position.latitude,
         position.longitude,
       );
 
-      if (distance >= _rerouteDistanceMeters) {
-        _getRoadRoute();
+      final distanceToRoute = _distanceToRouteMeters(
+        currentPoint,
+        _routePoints,
+      );
+
+      if (distanceToRoute > _offRouteThresholdMeters) {
+        _offRouteCount++;
+      } else {
+        // Kembali dekat dengan rute: batalkan hitungan penyimpangan.
+        _offRouteCount = 0;
+      }
+
+      final now = DateTime.now();
+      final canReroute = _lastRerouteTime == null ||
+          now.difference(_lastRerouteTime!).inSeconds >=
+              _rerouteCooldownSeconds;
+
+      if (_offRouteCount >= _offRouteRequiredReadings &&
+          canReroute) {
+        _offRouteCount = 0;
+        _lastRerouteTime = now;
+
+        _getRoadRoute(fromCurrentLocation: true);
       }
     }
   }
