@@ -1087,6 +1087,7 @@ if (_isCaptain && _isTouring && _destinasi != null) {
     }
   }
 }
+}
 
 // ==========================================================
 // CENTER LOCATION
