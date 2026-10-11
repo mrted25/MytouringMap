@@ -553,10 +553,28 @@ StreamSubscription<CompassEvent>? _compassSubscription;
       final savedVehicle = prefs.getString(_prefVehicleType) ?? 'Motor';
       final savedIsTouring = prefs.getBool(_prefIsTouring) ?? false;
 
-      final startLat = (data['startLat'] as num?)?.toDouble();
-      final startLng = (data['startLng'] as num?)?.toDouble();
-      final destinationLat = (data['destinationLat'] as num?)?.toDouble();
-      final destinationLng = (data['destinationLng'] as num?)?.toDouble();
+      
+final startLat = (data['startLat'] as num?)?.toDouble();
+final startLng = (data['startLng'] as num?)?.toDouble();
+
+final rawDestinationLat =
+    (data['destinationLat'] as num?)?.toDouble();
+final rawDestinationLng =
+    (data['destinationLng'] as num?)?.toDouble();
+
+final bool hasValidDestination =
+    rawDestinationLat != null &&
+    rawDestinationLng != null &&
+    rawDestinationLat >= -90 &&
+    rawDestinationLat <= 90 &&
+    rawDestinationLng >= -180 &&
+    rawDestinationLng <= 180 &&
+    !(rawDestinationLat == 0 && rawDestinationLng == 0);
+
+final double? destinationLat =
+    hasValidDestination ? rawDestinationLat : null;
+final double? destinationLng =
+    hasValidDestination ? rawDestinationLng : null;
 
       if (!mounted) return;
 
@@ -612,8 +630,11 @@ StreamSubscription<CompassEvent>? _compassSubscription;
         }
 
         if (destinationLat != null && destinationLng != null) {
-          _destinasi = LatLng(destinationLat, destinationLng);
-        }
+  _destinasi = LatLng(destinationLat, destinationLng);
+} else {
+  _destinasi = null;
+  _routePoints.clear();
+}
       });
 
       await WakelockPlus.enable();
@@ -1142,8 +1163,31 @@ void _followTouringPosition(Position position) {
     Future _getRoadRoute({
   bool fromCurrentLocation = true,
 }) async {
+  
   if (_isLoadingRoute) return;
-  if (_destinasi == null) return;
+
+  final destination = _destinasi;
+
+  if (destination == null) {
+    debugPrint('Rute dibatalkan: tujuan belum ditentukan.');
+    return;
+  }
+
+  // Validasi koordinat tujuan.
+  if (!destination.latitude.isFinite ||
+      !destination.longitude.isFinite ||
+      destination.latitude < -90 ||
+      destination.latitude > 90 ||
+      destination.longitude < -180 ||
+      destination.longitude > 180 ||
+      (destination.latitude == 0 &&
+          destination.longitude == 0)) {
+    debugPrint(
+      'Rute dibatalkan: koordinat tujuan tidak valid '
+      '${destination.latitude}, ${destination.longitude}',
+    );
+    return;
+  }
 
   LatLng? start;
 
@@ -1171,12 +1215,29 @@ void _followTouringPosition(Position position) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Titik kumpul belum ditentukan.',
-          ),
+          content: Text('Titik kumpul belum ditentukan.'),
         ),
       );
     }
+    return;
+  }
+
+  // Validasi koordinat awal.
+  if (!start.latitude.isFinite ||
+      !start.longitude.isFinite ||
+      start.latitude < -90 ||
+      start.latitude > 90 ||
+      start.longitude < -180 ||
+      start.longitude > 180 ||
+      (start.latitude == 0 && start.longitude == 0)) {
+    debugPrint('Rute dibatalkan: koordinat awal tidak valid.');
+    return;
+  }
+
+  // Hindari permintaan rute jika kedua titik sama.
+  if (start.latitude == destination.latitude &&
+      start.longitude == destination.longitude) {
+    debugPrint('Rute dibatalkan: titik awal dan tujuan sama.');
     return;
   }
 
@@ -1185,6 +1246,7 @@ void _followTouringPosition(Position position) {
       _isLoadingRoute = true;
     });
   }
+
 
   try {
     // ========================================================
