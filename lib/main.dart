@@ -241,7 +241,9 @@ class _MapScreenState extends State {
   LatLng? _titikKumpul;
   LatLng? _destinasi;
 
-  List _routePoints = [];
+  
+List<LatLng> _routePoints = [];
+
 
   double _routeDistanceKm = 0;
   double _routeDurationMinutes = 0;
