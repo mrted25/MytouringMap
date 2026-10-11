@@ -175,9 +175,10 @@ class TrialExpiredScreen extends StatelessWidget {
   }
 }
 
+
 class RouteOption {
   final String label;
-  final List points;
+  final List<LatLng> points;
   final double distanceKm;
   final double durationMinutes;
 
@@ -188,6 +189,7 @@ class RouteOption {
     required this.durationMinutes,
   });
 }
+
 
 class Member {
   final String id;
