@@ -1266,7 +1266,7 @@ debugPrint(
       queryParameters: {
         'start':
             '${start.longitude},${start.latitude}',
-        ''end':
+        'end':
     '${destination.longitude},${destination.latitude}',
         'profile': 'driving-car',
       },
