@@ -1258,7 +1258,7 @@ debugPrint(
 );
 
 debugPrint(
-  'ROUTE DEST LAT=${_destinasi!.latitude}, LNG=${_destinasi!.longitude}',
+  'ROUTE DEST LAT=${destination.latitude}, LNG=${destination.longitude}',
 );
     final uri = Uri.parse(
       'https://mytouringmap.vercel.app/api/route',
@@ -1266,8 +1266,8 @@ debugPrint(
       queryParameters: {
         'start':
             '${start.longitude},${start.latitude}',
-        'end':
-            '${_destinasi!.longitude},${_destinasi!.latitude}',
+        ''end':
+    '${destination.longitude},${destination.latitude}',
         'profile': 'driving-car',
       },
     );
@@ -1388,25 +1388,35 @@ if (summary == null) {
     'Summary HeiGIT tidak ditemukan.',
   );
 }
-    final distanceMeters =
-        (summary['distance'] as num).toDouble();
+    
+final distanceValue = summary['distance'];
+final durationValue = summary['duration'];
 
-    final durationSeconds =
-        (summary['duration'] as num).toDouble();
+if (distanceValue is! num ||
+    durationValue is! num) {
+  throw Exception(
+    'Jarak atau durasi HeiGIT tidak valid.',
+  );
+}
 
-    final distanceKm =
-        distanceMeters / 1000;
+final distanceMeters = distanceValue.toDouble();
+final durationSeconds = durationValue.toDouble();
 
-    final durationMinutes =
-        durationSeconds / 60;
+if (!distanceMeters.isFinite ||
+    !durationSeconds.isFinite ||
+    distanceMeters <= 0 ||
+    durationSeconds <= 0) {
+  throw Exception(
+    'Jarak atau durasi HeiGIT tidak masuk akal.',
+  );
+}
 
-    debugPrint(
-      'HEIGIT DISTANCE: $distanceKm km',
-    );
+final distanceKm = distanceMeters / 1000;
+final durationMinutes = durationSeconds / 60;
 
-    debugPrint(
-      'HEIGIT DURATION: $durationMinutes min',
-    );
+debugPrint('HEIGIT DISTANCE: $distanceKm km');
+debugPrint('HEIGIT DURATION: $durationMinutes min');
+
 
     // ========================================================
     // ROUTE OPTION
@@ -1489,9 +1499,9 @@ if (summary == null) {
           startLng:
               start.longitude,
           destinationLat:
-              _destinasi!.latitude,
-          destinationLng:
-              _destinasi!.longitude,
+    destination.latitude,
+destinationLng:
+    destination.longitude,
           distanceKm:
               selected.distanceKm,
           durationMinutes:
@@ -1525,28 +1535,27 @@ if (summary == null) {
         ),
       );
     }
-  } catch (e) {
-    debugPrint(
-      'HeiGIT Route error: $e',
-    );
 
+  } catch (e) {
+    debugPrint('HeiGIT Route error: $e');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('HeiGIT gagal:\n$e'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  } finally {
     if (mounted) {
       setState(() {
         _isLoadingRoute = false;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'HeiGIT gagal:\n$e',
-          ),
-          duration:
-              const Duration(seconds: 6),
-        ),
-      );
     }
   }
 }
+
 
   // ==========================================================
   // START TOURING
