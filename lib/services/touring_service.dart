@@ -1,53 +1,78 @@
+
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TouringService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final Random _random = Random.secure();
+
+  static const String _chars =
+      'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
   String generateTouringCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    String code = '';
-
-    for (int i = 0; i < 6; i++) {
-      code += chars[(now + i * 17) % chars.length];
-    }
-
-    return code;
+    return List.generate(
+      6,
+      (_) => _chars[_random.nextInt(_chars.length)],
+    ).join();
   }
 
   Future<Map<String, String>> createTouring({
-  required String name,
-  required String captainId,
-  required String captainName,
-  required double startLat,
-  required double startLng,
-  required double destinationLat,
-  required double destinationLng,
-}) async {
-  final code = generateTouringCode();
+    required String name,
+    required String captainId,
+    required String captainName,
+    required double startLat,
+    required double startLng,
+    required double destinationLat,
+    required double destinationLng,
+  }) async {
+    final tourings = _firestore.collection('tourings');
 
-  final touringRef = _firestore.collection('tourings').doc();
+    // Coba beberapa kali jika kode sudah digunakan.
+    for (int attempt = 0; attempt < 10; attempt++) {
+      final code = generateTouringCode();
 
-  await touringRef.set({
-    'name': name,
-    'code': code,
-    'captainId': captainId,
-    'captainName': captainName,
-    'startLat': startLat,
-    'startLng': startLng,
-    'destinationLat': destinationLat,
-    'destinationLng': destinationLng,
-    'status': 'waiting',
-    'createdAt': FieldValue.serverTimestamp(),
-  });
+      final result = await _firestore.runTransaction<
+          Map<String, String>>((transaction) async {
+        final existing = await tourings
+            .where('code', isEqualTo: code)
+            .limit(1)
+            .get();
 
-  return {
-    'touringId': touringRef.id,
-    'code': code,
-  };
-}
+        if (existing.docs.isNotEmpty) {
+          return <String, String>{};
+        }
+
+        final touringRef = tourings.doc();
+
+        transaction.set(touringRef, {
+          'name': name,
+          'code': code,
+          'captainId': captainId,
+          'captainName': captainName,
+          'startLat': startLat,
+          'startLng': startLng,
+          'destinationLat': destinationLat,
+          'destinationLng': destinationLng,
+          'status': 'waiting',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        return {
+          'touringId': touringRef.id,
+          'code': code,
+        };
+      });
+
+      if (result.isNotEmpty) {
+        return result;
+      }
+    }
+
+    throw Exception(
+      'Gagal membuat kode touring unik. Silakan coba lagi.',
+    );
+  }
 
   Future<void> updateTouringRoute({
     required String touringId,
