@@ -2490,34 +2490,77 @@ final code = result['code']!;
     nameController.dispose();
   }
 
-  Future _joinTouring({
-    required String code,
-    required String name,
-    required String vehicleType,
-  }) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('Firebase user belum tersedia.');
+  
+Future _joinTouring({
+  required String code,
+  required String name,
+  required String vehicleType,
+}) async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Firebase user belum tersedia.');
+    }
+
+    final normalizedCode = code.trim().toUpperCase();
+
+    final query = await _firestore
+        .collection('tourings')
+        .where('code', isEqualTo: normalizedCode)
+        .get();
+
+    if (query.docs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kode touring tidak ditemukan.'),
+          ),
+        );
       }
+      return;
+    }
 
-      final query = await _firestore
-          .collection('tourings')
-          .where('code', isEqualTo: code)
-          .limit(1)
-          .get();
+    // Pilih touring yang belum selesai.
+    final activeDocs = query.docs.where((doc) {
+      return doc.data()['status']?.toString() != 'finished';
+    }).toList();
 
-      if (query.docs.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Kode touring tidak ditemukan.')),
-          );
-        }
-        return;
+    if (activeDocs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Touring ini sudah selesai.'),
+          ),
+        );
       }
+      return;
+    }
 
-      final touringDoc = query.docs.first;
-      final data = touringDoc.data();
+    // Jangan memilih sembarang grup jika kodenya duplikat.
+    if (activeDocs.length > 1) {
+      debugPrint(
+        'PERINGATAN: Kode touring duplikat: $normalizedCode',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Kode touring ganda terdeteksi. '
+              'Road Captain perlu membuat kode baru.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    final touringDoc = activeDocs.first;
+    final data = touringDoc.data();
+
+    // Lanjutkan kode lama mulai dari:
+    // final startLat = ...
+
 
       if (data['status']?.toString() == 'finished') {
         if (mounted) {
