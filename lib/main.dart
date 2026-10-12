@@ -3221,6 +3221,29 @@ await engine.enableAudio();
     });
   }
 },
+        
+onConnectionStateChanged: (connection, state, reason) {
+  debugPrint(
+    'Agora connection state: '
+    'channel=${connection.channelId}, '
+    'state=$state, reason=$reason',
+  );
+},
+
+onAudioSubscribeStateChanged: (
+  channel,
+  uid,
+  oldState,
+  newState,
+  elapseSinceLastState,
+) {
+  debugPrint(
+    'Agora audio subscribe: '
+    'channel=$channel, uid=$uid, '
+    'old=$oldState, new=$newState',
+  );
+},
+        
 
         onUserJoined: (connection, remoteUid, elapsed) {
           debugPrint(
@@ -3297,6 +3320,7 @@ await engine.enableAudio();
   }
 }
   
+
 Future _joinAgoraTouringChannel(String touringId) async {
   if (kIsWeb) return;
   if (_engine == null) return;
@@ -3312,11 +3336,12 @@ Future _joinAgoraTouringChannel(String touringId) async {
       });
     }
 
-    // Kalau sebelumnya masih berada di channel lain,
-    // keluar terlebih dahulu.
+    // Keluar dari channel sebelumnya.
     try {
       await _engine!.leaveChannel();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Agora leave channel: $e');
+    }
 
     await Future.delayed(
       const Duration(milliseconds: 300),
@@ -3324,45 +3349,41 @@ Future _joinAgoraTouringChannel(String touringId) async {
 
     final token = await _getAgoraToken(channel);
 
-if (token == null || token.isEmpty) {
-  throw Exception(
-    'Agora token tidak berhasil didapatkan',
-  );
-}
-
-await _engine!.joinChannel(
-  token: token,
-  channelId: channel,
-  uid: 0,
-  options: const ChannelMediaOptions(
-    channelProfile:
-        ChannelProfileType.channelProfileCommunication,
-    clientRoleType:
-        ClientRoleType.clientRoleBroadcaster,
-    publishMicrophoneTrack: true,
-    autoSubscribeAudio: true,
-  ),
-);
-
-await _engine!.muteAllRemoteAudioStreams(false);
+    if (token == null || token.isEmpty) {
+      throw Exception(
+        'Agora token tidak berhasil didapatkan',
+      );
+    }
 
     _agoraChannelName = channel;
 
-    if (mounted) {
-      setState(() {
-        _isPttInitialized = true;
-        _microphoneEnabled = true;
-        _microphoneConnecting = false;
-      });
-    }
+    // Status siap akan diperbarui oleh callback
+    // onJoinChannelSuccess, bukan di sini.
+    await _engine!.joinChannel(
+      token: token,
+      channelId: channel,
+      uid: 0,
+      options: const ChannelMediaOptions(
+        channelProfile:
+            ChannelProfileType.channelProfileCommunication,
+        clientRoleType:
+            ClientRoleType.clientRoleBroadcaster,
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
+      ),
+    );
+
+    await _engine!.muteAllRemoteAudioStreams(false);
 
     debugPrint(
-      'Agora touring channel: $channel',
+      'Agora joinChannel dipanggil: $channel',
     );
   } catch (e) {
     debugPrint(
       'Agora join touring channel error: $e',
     );
+
+    _agoraChannelName = null;
 
     if (mounted) {
       setState(() {
@@ -3373,6 +3394,7 @@ await _engine!.muteAllRemoteAudioStreams(false);
     }
   }
 }
+
   
   
   // ==========================================================
