@@ -807,11 +807,13 @@ final double? destinationLng =
       );
 
       _positionStream = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 2,
-        ),
-      ).listen(_handlePosition);
+  locationSettings: AndroidSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 2, // Hanya update jika berpindah minimal 2 meter
+    forceLocationManager: false,
+    intervalDuration: const Duration(milliseconds: 1000), // Check setiap 1 detik
+  ),
+).listen(_handlePosition);
 
       if (mounted) {
         setState(() {
