@@ -809,7 +809,7 @@ final double? destinationLng =
       _positionStream = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
+          distanceFilter: 2,
         ),
       ).listen(_handlePosition);
 
@@ -1000,7 +1000,7 @@ void _handlePosition(Position position) {
       }
 
       // Smoothing heading
-      _smoothHeading += diff * 0.20;
+      _smoothHeading += diff * 0.35;
 
       // Normalisasi 0 - 360
       if (_smoothHeading < 0) {
