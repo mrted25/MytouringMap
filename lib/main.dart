@@ -218,7 +218,7 @@ class MapScreen extends StatefulWidget {
   State createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State {
+class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -341,6 +341,13 @@ static const int _rerouteCooldownSeconds = 20;
 
   Position? _currentPosition;
 
+  // ==========================================================
+  // GPS ANIMATION OPTIMIZATION
+  // ==========================================================
+  late AnimationController _markerAnimController;
+  late Animation<LatLng> _markerAnimation;
+  LatLng _oldMarkerPosition = const LatLng(0, 0);
+
   StreamSubscription? _positionStream;
 
   double _distanceInKm = 0;
@@ -401,8 +408,7 @@ static const double _touringMapZoom = 17;
 
   final Map _tileProviders = {
     'Standard': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    'Dark Mode':
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    'Dark Mode (CartoDB)': 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
     'Humanitarian': 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
   };
 
@@ -891,230 +897,173 @@ final double? destinationLng =
 }
   
   
-void _animateMarkerTo(Position position) {
-  final target = LatLng(
-    position.latitude,
-    position.longitude,
-  );
-
-  _markerAnimationTimer?.cancel();
-
-  final start = _displayMarkerPosition ?? target;
-
-  if (_displayMarkerPosition == null) {
-    setState(() {
-      _displayMarkerPosition = target;
-    });
-    return;
-  }
-
-  // Hitung jarak perpindahan GPS
-  final distanceMeters = Geolocator.distanceBetween(
-    start.latitude,
-    start.longitude,
-    target.latitude,
-    target.longitude,
-  );
-
-  // Kalau GPS tiba-tiba lompat terlalu jauh,
-  // jangan animasikan lompatan tersebut.
-  if (distanceMeters > 50) {
-    setState(() {
-      _displayMarkerPosition = target;
-    });
-    return;
-  }
-
-  // Marker lebih responsif mengikuti GPS
-const durationMs = 150;
-const intervalMs = 30;
-
-  const steps = durationMs ~/ intervalMs;
-
-  int step = 0;
-
-  _markerAnimationTimer = Timer.periodic(
-    const Duration(milliseconds: intervalMs),
-    (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      step++;
-
-      double t = step / steps;
-
-      if (t > 1) {
-        t = 1;
-      }
-
-      // Ease-in-out
-      final double eased =
-          t < 0.5
-              ? 2 * t * t
-              : 1 - math.pow(-2 * t + 2, 2) / 2;
-
-      final lat =
-          start.latitude +
-          (target.latitude - start.latitude) * eased;
-
-      final lng =
-          start.longitude +
-          (target.longitude - start.longitude) * eased;
-
-      setState(() {
-        _displayMarkerPosition = LatLng(lat, lng);
-      });
-
-      if (step >= steps) {
-        timer.cancel();
-
-        if (mounted) {
-          setState(() {
-            _displayMarkerPosition = target;
-          });
-        }
-      }
-    },
-  );
-}
-void _handlePosition(Position position) {
-  if (!mounted) return;
-
-  // ==========================================================
-  // UPDATE HEADING DENGAN SMOOTHING
-  // ==========================================================
-  if (position.heading >= 0 && position.speed > 1.0) {
-    final newHeading = position.heading;
-
-    if (!_hasSmoothHeading) {
-      _smoothHeading = newHeading;
-      _hasSmoothHeading = true;
-    } else {
-      double diff = newHeading - _smoothHeading;
-
-      // Ambil arah rotasi terpendek
-      if (diff > 180) {
-        diff -= 360;
-      } else if (diff < -180) {
-        diff += 360;
-      }
-
-      // Smoothing heading
-      _smoothHeading += diff * 0.35;
-
-      // Normalisasi 0 - 360
-      if (_smoothHeading < 0) {
-        _smoothHeading += 360;
-      } else if (_smoothHeading >= 360) {
-        _smoothHeading -= 360;
-      }
-    }
-
-    _heading = _smoothHeading;
-  }
-
-  // ==========================================================
-  // UPDATE POSISI + JARAK + ETA + STATUS GPS
-  // ==========================================================
-  setState(() {
-    _currentPosition = position;
-
-    // ========================================================
-    // JARAK & ETA KE DESTINASI
-    // ========================================================
-    if (_destinasi != null) {
-      _distanceInKm = Geolocator.distanceBetween(
-            position.latitude,
-            position.longitude,
-            _destinasi!.latitude,
-            _destinasi!.longitude,
-          ) /
-          1000;
-
-      _estimatedMinutes =
-          (_distanceInKm / 40 * 60).round();
-    }
-
-    _gpsStatus = 'GPS aktif';
-    _locationReady = true;
-  });
-
-  // ==========================================================
-  // ANIMASI MARKER
-  // ==========================================================
-  _animateMarkerTo(position);
-
-  // ==========================================================
-// FOLLOW NAVIGATION
 // ==========================================================
-// FOLLOW NAVIGATION + AUTO ROTASI PETA
-if (_followNavigation) {
-  _mapController.moveAndRotate(
-    LatLng(
+  // ANIMASI MARKER REAL-TIME (OPTIMAL UNTUK KECEPATAN TINGGI)
+  // ==========================================================
+  void _animateMarkerTo(Position position) {
+    final target = LatLng(
       position.latitude,
       position.longitude,
-    ),
-    _mapController.camera.zoom,
-    -_heading,
-  );
-}
+    );
 
-  // ==========================================================
-  // UPDATE POSISI MEMBER TOURING
-  // ==========================================================
-  if (_activeTouringId != null) {
-    _updateMyMemberLocation(position);
-  }
-
-// REROUTE OTOMATIS BERDASARKAN JARAK KE GARIS RUTE
-if (_isCaptain && _isTouring && _destinasi != null) {
-  // Jika rute belum tersedia, hitung rute pertama.
-  if (_routePoints.isEmpty) {
-    _offRouteCount = 0;
-
-    if (!_isLoadingRoute) {
-      _getRoadRoute(fromCurrentLocation: true);
+    // 1. Jika posisi awal belum ada, langsung set ke target
+    if (_displayMarkerPosition == null) {
+      setState(() {
+        _displayMarkerPosition = target;
+        _oldMarkerPosition = target;
+      });
+      return;
     }
-  } else if (!_isLoadingRoute) {
-    // GPS yang tidak akurat tidak boleh memicu reroute.
-    if (position.accuracy > _maxGpsAccuracyMeters) {
-      _offRouteCount = 0;
-    } else {
-      final currentPoint = LatLng(
-        position.latitude,
-        position.longitude,
-      );
 
-      final distanceToRoute = _distanceToRouteMeters(
-        currentPoint,
-        _routePoints,
-      );
+    // 2. Hitung jarak perpindahan GPS
+    final distanceMeters = Geolocator.distanceBetween(
+      _displayMarkerPosition!.latitude,
+      _displayMarkerPosition!.longitude,
+      target.latitude,
+      target.longitude,
+    );
 
-      if (distanceToRoute > _offRouteThresholdMeters) {
-        _offRouteCount++;
+    // 3. Jika GPS melompat terlalu jauh (> 50m), langsung pindahkan tanpa animasi
+    if (distanceMeters > 50) {
+      _markerAnimController.stop();
+      setState(() {
+        _displayMarkerPosition = target;
+        _oldMarkerPosition = target;
+      });
+      return;
+    }
+
+    // 4. Jalankan animasi dari titik saat ini ke koordinat baru
+    _oldMarkerPosition = _displayMarkerPosition!;
+
+    _markerAnimation = LatLngTween(
+      begin: _oldMarkerPosition,
+      end: target,
+    ).animate(
+      CurvedAnimation(
+        parent: _markerAnimController,
+        curve: Curves.linear, // Linier agar gerakan konstan mengejar GPS
+      ),
+    );
+
+    // Reset dan jalankan animasi dari 0ms ke 1000ms
+    _markerAnimController.forward(from: 0.0);
+  }
+      
+void _handlePosition(Position position) {
+    if (!mounted) return;
+
+    // 1. UPDATE HEADING DENGAN SMOOTHING
+    if (position.heading >= 0 && position.speed > 1.0) {
+      final newHeading = position.heading;
+
+      if (!_hasSmoothHeading) {
+        _smoothHeading = newHeading;
+        _hasSmoothHeading = true;
       } else {
-        // Kembali dekat dengan rute: batalkan hitungan penyimpangan.
-        _offRouteCount = 0;
+        double diff = newHeading - _smoothHeading;
+
+        if (diff > 180) {
+          diff -= 360;
+        } else if (diff < -180) {
+          diff += 360;
+        }
+
+        _smoothHeading += diff * 0.35;
+
+        if (_smoothHeading < 0) {
+          _smoothHeading += 360;
+        } else if (_smoothHeading >= 360) {
+          _smoothHeading -= 360;
+        }
       }
 
-      final now = DateTime.now();
-      final canReroute = _lastRerouteTime == null ||
-          now.difference(_lastRerouteTime!).inSeconds >=
-              _rerouteCooldownSeconds;
+      _heading = _smoothHeading;
+    }
 
-      if (_offRouteCount >= _offRouteRequiredReadings &&
-          canReroute) {
+    // 2. UPDATE POSISI + JARAK + ETA + STATUS GPS
+    setState(() {
+      _currentPosition = position;
+
+      if (_destinasi != null) {
+        _distanceInKm = Geolocator.distanceBetween(
+              position.latitude,
+              position.longitude,
+              _destinasi!.latitude,
+              _destinasi!.longitude,
+            ) /
+            1000;
+
+        _estimatedMinutes = (_distanceInKm / 40 * 60).round();
+      }
+
+      _gpsStatus = 'GPS aktif';
+      _locationReady = true;
+    });
+
+    // 3. JALANKAN ANIMASI MARKER PERSISI
+    _animateMarkerTo(position);
+
+    // 4. AUTO ROTASI PETA JIKA MODE NAVIGASI AKTIF
+    if (_followNavigation) {
+      _mapController.moveAndRotate(
+        LatLng(
+          position.latitude,
+          position.longitude,
+        ),
+        _mapController.camera.zoom,
+        -_heading,
+      );
+    }
+
+    // 5. UPDATE POSISI KE FIRESTORE UNTUK MEMBER LAIN
+    if (_activeTouringId != null) {
+      _updateMyMemberLocation(position);
+    }
+
+    // 6. REROUTE OTOMATIS
+    if (_isCaptain && _isTouring && _destinasi != null) {
+      if (_routePoints.isEmpty) {
         _offRouteCount = 0;
-        _lastRerouteTime = now;
 
-        _getRoadRoute(fromCurrentLocation: true);
+        if (!_isLoadingRoute) {
+          _getRoadRoute(fromCurrentLocation: true);
+        }
+      } else if (!_isLoadingRoute) {
+        if (position.accuracy > _maxGpsAccuracyMeters) {
+          _offRouteCount = 0;
+        } else {
+          final currentPoint = LatLng(
+            position.latitude,
+            position.longitude,
+          );
+
+          final distanceToRoute = _distanceToRouteMeters(
+            currentPoint,
+            _routePoints,
+          );
+
+          if (distanceToRoute > _offRouteThresholdMeters) {
+            _offRouteCount++;
+          } else {
+            _offRouteCount = 0;
+          }
+
+          final now = DateTime.now();
+          final canReroute = _lastRerouteTime == null ||
+              now.difference(_lastRerouteTime!).inSeconds >=
+                  _rerouteCooldownSeconds;
+
+          if (_offRouteCount >= _offRouteRequiredReadings && canReroute) {
+            _offRouteCount = 0;
+            _lastRerouteTime = now;
+
+            _getRoadRoute(fromCurrentLocation: true);
+          }
+        }
       }
     }
   }
-}
-}
 
 // ==========================================================
 // CENTER LOCATION
@@ -3498,6 +3447,7 @@ if (mounted) {
 
   @override
 void dispose() {
+  _markerAnimController.dispose();
   _positionStream?.cancel();
   _compassSubscription?.cancel();
   _membersSubscription?.cancel();
@@ -3630,7 +3580,8 @@ void dispose() {
               TileLayer(
                 urlTemplate: _tileProviders[_selectedTile]!,
                 userAgentPackageName: 'com.tedapp.touringmap',
-                maxZoom: 19,
+                tileProvider: CancellableNetworkTileProvider(),
+                maxZoom: 18,
               ),
 
               if (_routeOptions.isNotEmpty)
@@ -4164,5 +4115,22 @@ if (_displayMarkerPosition != null)
         ],
       ),
     );
+  }
+}
+
+// ==========================================================
+// HELPER TWEEN UNTUK LATLNG
+// ==========================================================
+class LatLngTween extends Tween<LatLng> {
+  LatLngTween({LatLng? begin, LatLng? end}) : super(begin: begin, end: end);
+
+  @override
+  LatLng transform(double t) {
+    if (begin == null || end == null) return end ?? const LatLng(0, 0);
+
+    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
+    final lng = begin!.longitude + (end!.longitude - begin!.longitude) * t;
+
+    return LatLng(lat, lng);
   }
 }
