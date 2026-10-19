@@ -407,9 +407,10 @@ static const double _touringMapZoom = 17;
   // ==========================================================
 
   final Map _tileProviders = {
-    'Standard': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'Standard': 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
     'Dark Mode': 'https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
-    'Humanitarian': 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    'Outdoor': 'https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
+    'Satelit': 'https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.jpg?key=RkfpNHuZd0xE4QOPpOsH',
   };
 
   String _selectedTile = 'Standard';
