@@ -149,10 +149,10 @@ class TrialExpiredScreen extends StatelessWidget {
 
                 const Text(
                   'Untuk melanjutkan penggunaan aplikasi, '
-                  'silakan hubungi Mr. Ted.',
+                  'silakan hubungi Mr. Ted. Email mr.ted252907@gmail.com',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 12,
                   ),
                 ),
 
@@ -437,47 +437,54 @@ bool _isTestPttTalking = false;
 StreamSubscription<CompassEvent>? _compassSubscription;
 
   @override
-  void initState() {
-    super.initState();
+@override
+void initState() {
+  super.initState();
 
-    // 1. Inisialisasi AnimationController untuk pergerakan halus marker
-    _markerAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000), // Sesuai interval 1 detik GPS
-    );
+  // 1. Inisialisasi AnimationController
+  _markerAnimController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
 
-    // Update posisi marker setiap frame animasi berjalan
-    _markerAnimController.addListener(() {
-      if (_markerAnimation.value != null && mounted) {
-        setState(() {
-          _displayMarkerPosition = _markerAnimation.value;
-        });
-      }
-    });
+  // 2. Inisialisasi dummy animation agar aman dari LateInitializationError
+  _markerAnimation = LatLngTween(
+    begin: const LatLng(0, 0),
+    end: const LatLng(0, 0),
+  ).animate(_markerAnimController);
 
-    // 2. Tetap nyalakan layar agar tidak mati saat touring
-    WakelockPlus.enable();
+  // 3. Pasang listener
+  _markerAnimController.addListener(() {
+    if (mounted) {
+      setState(() {
+        _displayMarkerPosition = _markerAnimation.value;
+      });
+    }
+  });
 
-    // 3. Inisialisasi GPS
-    _initializeGPS();
+  // 4. Tetap nyalakan layar
+  WakelockPlus.enable();
 
-    // 4. Dengarkan arah kompas HP
-    _compassSubscription = FlutterCompass.events?.listen((event) {
-      if (mounted && event.heading != null) {
-        setState(() {
-          _heading = event.heading!;
-        });
-      }
-    });
+  // 5. Inisialisasi GPS
+  _initializeGPS();
 
-    // 5. Callback pasca frame
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!kIsWeb) {
-        await _initAgoraPTT();
-      }
-      await _restoreTouringSession();
-    });
-  }
+  // 6. Dengarkan kompas HP
+  _compassSubscription = FlutterCompass.events?.listen((event) {
+    if (mounted && event.heading != null) {
+      setState(() {
+        _heading = event.heading!;
+      });
+    }
+  });
+
+  // 7. Post frame callback (Agora & Restore Session)
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    if (!kIsWeb) {
+      await _initAgoraPTT();
+    }
+    await _restoreTouringSession();
+  });
+}
 
   // ==========================================================
   // SAVE LOCAL TOURING SESSION
@@ -966,75 +973,71 @@ final double? destinationLng =
   }
       
 void _handlePosition(Position position) {
-    if (!mounted) return;
+  if (!mounted) return;
 
-    // 1. UPDATE HEADING DENGAN SMOOTHING
-    if (position.heading >= 0 && position.speed > 1.0) {
-      final newHeading = position.heading;
+  // 1. UPDATE HEADING DENGAN SMOOTHING
+  if (position.heading >= 0 && position.speed > 1.0) {
+    final newHeading = position.heading;
 
-      if (!_hasSmoothHeading) {
-        _smoothHeading = newHeading;
-        _hasSmoothHeading = true;
-      } else {
-        double diff = newHeading - _smoothHeading;
+    if (!_hasSmoothHeading) {
+      _smoothHeading = newHeading;
+      _hasSmoothHeading = true;
+    } else {
+      double diff = newHeading - _smoothHeading;
 
-        if (diff > 180) {
-          diff -= 360;
-        } else if (diff < -180) {
-          diff += 360;
-        }
-
-        _smoothHeading += diff * 0.35;
-
-        if (_smoothHeading < 0) {
-          _smoothHeading += 360;
-        } else if (_smoothHeading >= 360) {
-          _smoothHeading -= 360;
-        }
+      if (diff > 180) {
+        diff -= 360;
+      } else if (diff < -180) {
+        diff += 360;
       }
 
-      _heading = _smoothHeading;
-    }
+      _smoothHeading += diff * 0.35;
 
-    // 2. UPDATE POSISI + JARAK + ETA + STATUS GPS
-    setState(() {
-      _currentPosition = position;
-
-      if (_destinasi != null) {
-        _distanceInKm = Geolocator.distanceBetween(
-              position.latitude,
-              position.longitude,
-              _destinasi!.latitude,
-              _destinasi!.longitude,
-            ) /
-            1000;
-
-        _estimatedMinutes = (_distanceInKm / 40 * 60).round();
+      if (_smoothHeading < 0) {
+        _smoothHeading += 360;
+      } else if (_smoothHeading >= 360) {
+        _smoothHeading -= 360;
       }
-
-      _gpsStatus = 'GPS aktif';
-      _locationReady = true;
-    });
-
-    // 3. JALANKAN ANIMASI MARKER PERSISI
-    _animateMarkerTo(position);
-
-    // 4. AUTO ROTASI PETA JIKA MODE NAVIGASI AKTIF
-    if (_followNavigation) {
-      _mapController.moveAndRotate(
-        LatLng(
-          position.latitude,
-          position.longitude,
-        ),
-        _mapController.camera.zoom,
-        -_heading,
-      );
     }
 
-    // 5. UPDATE POSISI KE FIRESTORE UNTUK MEMBER LAIN
-    if (_activeTouringId != null) {
-      _updateMyMemberLocation(position);
+    _heading = _smoothHeading;
+  }
+
+  // 2. UPDATE POSISI + MARKER SEGERA (TANPA DELAY/ANIMASI BERAT)
+  final newLocation = LatLng(position.latitude, position.longitude);
+
+  setState(() {
+    _currentPosition = position;
+    _displayMarkerPosition = newLocation; // Langsung update posisi marker
+
+    if (_destinasi != null) {
+      _distanceInKm = Geolocator.distanceBetween(
+            position.latitude,
+            position.longitude,
+            _destinasi!.latitude,
+            _destinasi!.longitude,
+          ) / 1000;
+
+      _estimatedMinutes = (_distanceInKm / 40 * 60).round();
     }
+
+    _gpsStatus = 'GPS aktif';
+    _locationReady = true;
+  });
+
+  // 3. AUTO ROTASI / IKUTI NAVIGASI PETA
+  if (_followNavigation) {
+    _mapController.moveAndRotate(
+      newLocation,
+      _mapController.camera.zoom,
+      -_heading,
+    );
+  }
+
+  // 4. KIRIM LOKASI KE FIRESTORE (DEBOUNCE / TIMED)
+  if (_activeTouringId != null) {
+    _updateMyMemberLocation(position);
+  }
 
     // 6. REROUTE OTOMATIS
     if (_isCaptain && _isTouring && _destinasi != null) {
@@ -3593,11 +3596,13 @@ void dispose() {
             ),
             children: [
               TileLayer(
-                urlTemplate: _tileProviders[_selectedTile]!,
-                userAgentPackageName: 'com.tedapp.touringmap',
-                tileProvider: NetworkTileProvider(),
-                maxZoom: 18,
-              ),
+  urlTemplate: _tileProviders[_selectedTile]!,
+  userAgentPackageName: 'com.tedapp.touringmap',
+  tileProvider: NetworkTileProvider(),
+  maxZoom: 17,
+  maxNativeZoom: 17,
+  keepBuffer: 5,
+),
 
               if (_routeOptions.isNotEmpty)
                 PolylineLayer(
@@ -3621,8 +3626,8 @@ void dispose() {
 if (_displayMarkerPosition != null)
   Marker(
     point: _displayMarkerPosition!,
-    width: 65,
-    height: 75,
+    width: 55,
+    height: 65,
     rotate: false,
     child: Transform.rotate(
       angle: _heading * math.pi / 180,
@@ -3653,8 +3658,8 @@ if (_displayMarkerPosition != null)
             _isMotorMode
                 ? 'assets/metic.png'
                 : 'assets/xtrail.png',
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             fit: BoxFit.contain,
           ),
         ],
@@ -3717,8 +3722,8 @@ if (_displayMarkerPosition != null)
   (member) {
     return Marker(
       point: member.location,
-      width: 65,
-      height: 75,
+      width: 55,
+      height: 65,
       rotate: true,
       child: Transform.rotate(
         angle: member.heading * math.pi / 180,
@@ -3749,8 +3754,8 @@ if (_displayMarkerPosition != null)
             ),
             Image.asset(
               _vehicleAsset(member.vehicleType),
-              width: 42,
-              height: 42,
+              width: 40,
+              height: 40,
               fit: BoxFit.contain,
             ),
           ],
