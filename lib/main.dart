@@ -408,7 +408,7 @@ static const double _touringMapZoom = 17;
 
   final Map _tileProviders = {
     'Standard': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    'Dark Mode': 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    'Dark Mode': 'https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
     'Humanitarian': 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
   };
 
