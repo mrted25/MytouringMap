@@ -440,27 +440,41 @@ StreamSubscription<CompassEvent>? _compassSubscription;
   void initState() {
     super.initState();
 
-    // 1. Tetap nyalakan layar agar tidak mati saat touring
+    // 1. Inisialisasi AnimationController untuk pergerakan halus marker
+    _markerAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000), // Sesuai interval 1 detik GPS
+    );
+
+    // Update posisi marker setiap frame animasi berjalan
+    _markerAnimController.addListener(() {
+      if (_markerAnimation.value != null && mounted) {
+        setState(() {
+          _displayMarkerPosition = _markerAnimation.value;
+        });
+      }
+    });
+
+    // 2. Tetap nyalakan layar agar tidak mati saat touring
     WakelockPlus.enable();
 
-    // 2. Inisialisasi GPS yang sudah ada
+    // 3. Inisialisasi GPS
     _initializeGPS();
 
-    // 3. TAMBAHAN: Dengarkan arah kompas HP agar marker berputar otomatis
+    // 4. Dengarkan arah kompas HP
     _compassSubscription = FlutterCompass.events?.listen((event) {
-  if (mounted && event.heading != null) {
-    setState(() {
-      _heading = event.heading!;
+      if (mounted && event.heading != null) {
+        setState(() {
+          _heading = event.heading!;
+        });
+      }
     });
-  }
-});
 
-    // 4. Callback pasca frame yang sudah ada
+    // 5. Callback pasca frame
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!kIsWeb) {
         await _initAgoraPTT();
       }
-
       await _restoreTouringSession();
     });
   }
@@ -814,13 +828,13 @@ final double? destinationLng =
       );
 
       _positionStream = Geolocator.getPositionStream(
-  locationSettings: AndroidSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 2, // Hanya update jika berpindah minimal 2 meter
-    forceLocationManager: false,
-    intervalDuration: const Duration(milliseconds: 1000), // Check setiap 1 detik
-  ),
-).listen(_handlePosition);
+        locationSettings: AndroidSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 1, // Perbarui setiap bergeser 1 meter
+          forceLocationManager: true, // Paksa hardware GPS tetap mengirim data
+          intervalDuration: const Duration(milliseconds: 1000),
+        ),
+      ).listen(_handlePosition);
 
       if (mounted) {
         setState(() {
