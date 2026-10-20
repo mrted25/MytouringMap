@@ -218,7 +218,7 @@ class MapScreen extends StatefulWidget {
   State createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
+class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final MapController _mapController = MapController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -407,7 +407,8 @@ static const double _touringMapZoom = 17;
   // ==========================================================
 
   final Map _tileProviders = {
-    'Standard': 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
+     'Standard': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'Standard 1': 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
     'Dark Mode': 'https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
     'Outdoor': 'https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=RkfpNHuZd0xE4QOPpOsH',
     'Satelit': 'https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.jpg?key=RkfpNHuZd0xE4QOPpOsH',
@@ -440,6 +441,7 @@ StreamSubscription<CompassEvent>? _compassSubscription;
 @override
 void initState() {
   super.initState();
+  WidgetsBinding.instance.addObserver(this);
 
   // 1. Inisialisasi AnimationController
   _markerAnimController = AnimationController(
@@ -3465,6 +3467,7 @@ if (mounted) {
 
   @override
 void dispose() {
+  WidgetsBinding.instance.addObserver(this);
   _markerAnimController.dispose();
   _positionStream?.cancel();
   _compassSubscription?.cancel();
@@ -3599,8 +3602,8 @@ void dispose() {
   urlTemplate: _tileProviders[_selectedTile]!,
   userAgentPackageName: 'com.tedapp.touringmap',
   tileProvider: NetworkTileProvider(),
-  maxZoom: 17,
-  maxNativeZoom: 17,
+  maxZoom: 19,
+  maxNativeZoom: 19,
   keepBuffer: 5,
 ),
 
