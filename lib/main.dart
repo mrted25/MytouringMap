@@ -3403,11 +3403,6 @@ Future _joinAgoraTouringChannel(String touringId) async {
 
     await _initAgoraPTT();
 
-if (_activeTouringId != null) {
-  await _joinAgoraTouringChannel(
-    _activeTouringId!,
-  );
-}
 
 if (mounted) {
   setState(() {
