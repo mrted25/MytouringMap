@@ -426,6 +426,7 @@ String? _agoraChannelName;
 
 bool _isPttInitialized = false;
 bool _isTalking = false;
+bool _isIntercomEnabled = false;
 bool _microphoneEnabled = false;
 bool _microphoneConnecting = false;
 bool _isTestPttJoined = false;
@@ -3304,6 +3305,8 @@ Future _joinAgoraTouringChannel(String touringId) async {
         _microphoneConnecting = true;
         _isPttInitialized = false;
         _microphoneEnabled = false;
+        _isIntercomEnabled = false;
+        _isTalking = false;
       });
     }
 
@@ -3381,6 +3384,7 @@ Future _joinAgoraTouringChannel(String touringId) async {
         _microphoneEnabled = false;
         _isPttInitialized = false;
         _isTalking = false;
+        _isIntercomEnabled = false;
         _microphoneConnecting = true;
       });
     }
@@ -3445,7 +3449,10 @@ if (mounted) {
     if (!_isPttInitialized || _engine == null) return;
 
     try {
-      await _engine!.muteLocalAudioStream(true);
+      // Jika Intercom aktif, mikrofon tetap terbuka setelah tombol PTT dilepas.
+      if (!_isIntercomEnabled) {
+        await _engine!.muteLocalAudioStream(true);
+      }
       if (mounted) {
         setState(() {
           _isTalking = false;
@@ -3453,6 +3460,47 @@ if (mounted) {
       }
     } catch (e) {
       debugPrint('PTT stop error: $e');
+    }
+  }
+
+  // ==========================================================
+  // INTERCOM ON / OFF
+  // ==========================================================
+
+  Future _toggleIntercom() async {
+    if (!_isPttInitialized || _engine == null || _agoraChannelName == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Masuk ke grup touring dan tunggu audio terhubung terlebih dahulu.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final enableIntercom = !_isIntercomEnabled;
+
+    try {
+      await _engine!.muteLocalAudioStream(!enableIntercom);
+
+      if (!mounted) return;
+      setState(() {
+        _isIntercomEnabled = enableIntercom;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enableIntercom
+                ? 'Intercom aktif: mikrofon terbuka.'
+                : 'Intercom nonaktif: kembali ke mode PTT.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Toggle Intercom error: $e');
     }
   }
 
@@ -4097,6 +4145,36 @@ if (_displayMarkerPosition != null)
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 48,
+                  height: 45,
+                  child: IconButton(
+                    onPressed: _toggleIntercom,
+                    tooltip: _isIntercomEnabled
+                        ? 'Matikan Intercom'
+                        : 'Aktifkan Intercom',
+                    padding: EdgeInsets.zero,
+                    style: IconButton.styleFrom(
+                      backgroundColor: _isIntercomEnabled
+                          ? Colors.green
+                          : Colors.black87,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: _isIntercomEnabled
+                              ? Colors.greenAccent
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
+                    icon: Icon(
+                      _isIntercomEnabled ? Icons.headset_mic : Icons.headset,
+                      size: 23,
                     ),
                   ),
                 ),
