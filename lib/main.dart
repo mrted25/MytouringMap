@@ -432,6 +432,12 @@ bool _microphoneConnecting = false;
 bool _isTestPttJoined = false;
 bool _isTestPttTalking = false;
 
+// Volume audio Agora (0-100), disimpan di perangkat masing-masing.
+static const String _prefMicVolume = 'agora_mic_volume';
+static const String _prefSpeakerVolume = 'agora_speaker_volume';
+int _micVolume = 100;
+int _speakerVolume = 100;
+
   // ==========================================================
   // INIT
   // ==========================================================
@@ -482,6 +488,7 @@ void initState() {
 
   // 7. Post frame callback (Agora & Restore Session)
   WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await _loadAudioSettings();
     if (!kIsWeb) {
       await _initAgoraPTT();
     }
@@ -3265,6 +3272,151 @@ onAudioSubscribeStateChanged: (
   }
 }
 
+  // ==========================================================
+  // PENGATURAN VOLUME AUDIO
+  // ==========================================================
+
+  Future _loadAudioSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mic = prefs.getInt(_prefMicVolume) ?? 100;
+      final speaker = prefs.getInt(_prefSpeakerVolume) ?? 100;
+
+      if (!mounted) return;
+      setState(() {
+        _micVolume = mic.clamp(0, 100).toInt();
+        _speakerVolume = speaker.clamp(0, 100).toInt();
+      });
+
+      await _applyAgoraAudioVolumes();
+    } catch (e) {
+      debugPrint('Load audio settings error: $e');
+    }
+  }
+
+  Future _applyAgoraAudioVolumes() async {
+    final engine = _engine;
+    if (engine == null) return;
+
+    try {
+      await engine.adjustRecordingSignalVolume(_micVolume);
+      await engine.adjustPlaybackSignalVolume(_speakerVolume);
+      debugPrint(
+        'Agora volume applied: mic=$_micVolume speaker=$_speakerVolume',
+      );
+    } catch (e) {
+      debugPrint('Apply Agora volume error: $e');
+    }
+  }
+
+  Future _setMicVolume(int value) async {
+    final volume = value.clamp(0, 100).toInt();
+    if (mounted) setState(() => _micVolume = volume);
+
+    try {
+      await _engine?.adjustRecordingSignalVolume(volume);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefMicVolume, volume);
+    } catch (e) {
+      debugPrint('Set microphone volume error: $e');
+    }
+  }
+
+  Future _setSpeakerVolume(int value) async {
+    final volume = value.clamp(0, 100).toInt();
+    if (mounted) setState(() => _speakerVolume = volume);
+
+    try {
+      await _engine?.adjustPlaybackSignalVolume(volume);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefSpeakerVolume, volume);
+    } catch (e) {
+      debugPrint('Set speaker volume error: $e');
+    }
+  }
+
+  Future _showAudioSettings() async {
+    int micValue = _micVolume;
+    int speakerValue = _speakerVolume;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.tune),
+                  SizedBox(width: 10),
+                  Text('Pengaturan Audio'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.mic, size: 20),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('Volume Mikrofon')),
+                      Text('$micValue%'),
+                    ],
+                  ),
+                  Slider(
+                    value: micValue.toDouble(),
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    label: '$micValue%',
+                    onChanged: (value) {
+                      final next = value.round();
+                      setDialogState(() => micValue = next);
+                      _setMicVolume(next);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.volume_up, size: 20),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('Volume Speaker')),
+                      Text('$speakerValue%'),
+                    ],
+                  ),
+                  Slider(
+                    value: speakerValue.toDouble(),
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    label: '$speakerValue%',
+                    onChanged: (value) {
+                      final next = value.round();
+                      setDialogState(() => speakerValue = next);
+                      _setSpeakerVolume(next);
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Pengaturan disimpan otomatis di HP ini.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Selesai'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<String?> _getAgoraToken(String channel) async {
   try {
     final uri = Uri.parse(
@@ -3348,6 +3500,7 @@ Future _joinAgoraTouringChannel(String touringId) async {
     );
 
     await _engine!.muteAllRemoteAudioStreams(false);
+    await _applyAgoraAudioVolumes();
 
     debugPrint(
       'Agora joinChannel dipanggil: $channel',
@@ -4178,7 +4331,25 @@ if (_displayMarkerPosition != null)
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 5),
+                SizedBox(
+                  width: 40,
+                  height: 45,
+                  child: IconButton(
+                    onPressed: _showAudioSettings,
+                    tooltip: 'Pengaturan Audio',
+                    padding: EdgeInsets.zero,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.blueGrey.shade800,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.tune, size: 21),
+                  ),
+                ),
+                const SizedBox(width: 5),
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
